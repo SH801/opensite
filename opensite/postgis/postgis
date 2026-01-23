@@ -1,0 +1,606 @@
+# ***********************************************************
+# ******************** PostGIS functions ********************
+# ***********************************************************
+
+def postgisWaitRunning():
+    """
+    Wait until PostGIS is running
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    LogMessage("Attempting connection to PostGIS...")
+
+    while True:
+        try:
+            conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+            cur = conn.cursor()
+            cur.close()
+            break
+        except:
+            time.sleep(5)
+
+    LogMessage("Connection to PostGIS successful")
+
+def postgisGetAllTables():
+    """
+    Gets list of all tables
+    """
+
+    global POSTGRES_DB
+
+    all_tables = postgisGetResults(r"""
+    SELECT tables.table_name
+    FROM information_schema.tables
+    WHERE 
+    table_catalog=%s AND 
+    table_schema='public' AND 
+    table_type='BASE TABLE' AND
+    table_name NOT IN ('spatial_ref_sys')
+    ORDER BY table_name;
+    """, (POSTGRES_DB, ))
+    return [table[0] for table in all_tables]
+
+def postgisCheckTableExists(table_name):
+    """
+    Checks whether table already exists
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    table_name = table_name.replace("-", "_")
+    conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+    cur = conn.cursor()
+    cur.execute("SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name=%s);", (table_name, ))
+    tableexists = cur.fetchone()[0]
+    cur.close()
+    return tableexists
+
+def postgisCheckColumnExists(table_name, column_name):
+    """
+    Checks whether column exists in table
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    table_name = reformatTableName(table_name)
+    conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+    cur = conn.cursor()
+    cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=%s AND column_name=%s);", (table_name, column_name, ))
+    columnexists = cur.fetchone()[0]
+    cur.close()
+    return columnexists
+
+def postgisExec(sql_text, sql_parameters):
+    """
+    Executes SQL statement
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD, \
+                            keepalives=1, keepalives_idle=30, keepalives_interval=5, keepalives_count=5)
+    cur = conn.cursor()
+    cur.execute(sql_text, sql_parameters)
+    conn.commit()
+    conn.close()
+
+def postgisGetResults(sql_text, sql_parameters):
+    """
+    Runs database query and returns results
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+    cur = conn.cursor()
+    cur.execute(sql_text, sql_parameters)
+    results = cur.fetchall()
+    conn.close()
+    return results
+
+def postgisGetNumberRecords(table_name):
+    """
+    Gets number of records in table
+    """
+
+    results = postgisGetResults("SELECT COUNT(*) FROM %s;", (AsIs(table_name), ))
+    return results[0][0]
+
+def postgisGetTableSize(table_name):
+    """
+    Gets size of table
+    """
+
+    results = postgisGetResults("SELECT pg_relation_size(%s);", (table_name, ))
+    return results[0][0]
+
+def postgisGetCustomTables():
+    """
+    Gets list of all custom configuration tables in database
+    """
+
+    global CUSTOM_CONFIGURATION_TABLE_PREFIX
+
+    custom_configuration_prefix_escape = CUSTOM_CONFIGURATION_TABLE_PREFIX.replace(r'_', r'\_')
+
+    return postgisGetResults(r"""
+    SELECT tables.table_name
+    FROM information_schema.tables
+    WHERE 
+    table_catalog=%s AND 
+    table_schema='public' AND 
+    table_type='BASE TABLE' AND
+    table_name NOT IN ('spatial_ref_sys') AND 
+    table_name LIKE '""" + custom_configuration_prefix_escape + r"""%%' 
+    ORDER BY table_name;
+    """, (POSTGRES_DB, ))
+
+def postgisGetDerivedTables():
+    """
+    Gets list of all derived tables in database
+    """
+
+    # Derived tables:
+    # Any 'buf'fered
+    # Any 'pro'cessed
+    # Any final layer 'tip_...'
+
+    return postgisGetResults(r"""
+    SELECT tables.table_name
+    FROM information_schema.tables
+    WHERE 
+    table_catalog=%s AND 
+    table_schema='public' AND 
+    table_type='BASE TABLE' AND
+    table_name NOT IN ('spatial_ref_sys') AND
+    (
+        (table_name LIKE '%%\_\_buf\_%%') OR 
+        (table_name LIKE '%%\_\_pro') OR 
+        (table_name LIKE 'tip\_%%') 
+    )
+    ORDER BY table_name;
+    """, (POSTGRES_DB, ))
+
+def postgisGetLegacyTables():
+    """
+    Gets list of all legacy tables in database
+    """
+
+    # Legacy tables:
+    # public_roads_a_and_b_roads_and_motorways__uk
+    # tipheight_...
+
+    return postgisGetResults(r"""
+    SELECT tables.table_name
+    FROM information_schema.tables
+    WHERE 
+    table_catalog=%s AND 
+    table_schema='public' AND 
+    table_type='BASE TABLE' AND
+    table_name NOT IN ('spatial_ref_sys') AND
+    (
+        (table_name LIKE 'public\_roads\_a\_and\_b\_roads\_and\_motorways\_\_uk%%') OR
+        (table_name LIKE 'tipheight\_%%')
+    );
+    """, (POSTGRES_DB, ))
+
+def postgisGetAmalgamatedTables():
+    """
+    Gets list of all amalgamated tables in database
+    """
+
+    return postgisGetResults(r"""
+    SELECT tables.table_name
+    FROM information_schema.tables
+    WHERE 
+    table_catalog=%s AND 
+    table_schema='public' AND 
+    table_type='BASE TABLE' AND
+    table_name NOT IN ('spatial_ref_sys') AND
+    table_name LIKE 'tip\_%%';
+    """, (POSTGRES_DB, ))
+
+def postgisDropTable(table_name):
+    """
+    Drops PostGIS table
+    """
+
+    postgisExec("DROP TABLE IF EXISTS %s", (AsIs(table_name), ))
+
+def postgisDropAllTables():
+    """
+    Drops all tables in schema
+    """
+
+    global OSM_BOUNDARIES
+
+    # ignore_tables = [reformatTableName(OSM_BOUNDARIES)]
+    ignore_tables = []
+    all_tables = postgisGetAllTables()
+
+    for table in all_tables:
+        if table in ignore_tables: continue
+        postgisDropTable(table)
+
+def postgisDropCustomTables():
+    """
+    Drops all custom configuration tables in schema
+    """
+
+    customtables = postgisGetCustomTables()
+
+    for table in customtables:
+        table_name, = table
+        LogMessage(" --> Dropping custom table: " + table_name)
+        postgisDropTable(table_name)
+
+def postgisDropDerivedTables():
+    """
+    Drops all derived tables in schema
+    """
+
+    LogMessage(" --> Dropping all tip_*, *__pro and *__buf_* tables")
+
+    derivedtables = postgisGetDerivedTables()
+
+    for table in derivedtables:
+        table_name, = table
+        postgisDropTable(table_name)
+
+def postgisDropLegacyTables():
+    """
+    Drops all legacy tables in schema
+    """
+
+    legacytables = postgisGetLegacyTables()
+
+    for table in legacytables:
+        table_name, = table
+        LogMessage("Removing legacy table: " + table_name)
+        postgisDropTable(table_name)
+
+def postgisDropAmalgamatedTables():
+    """
+    Drops all amalgamated tables in schema
+    """
+
+    LogMessage(" --> Dropping all tip_... tables")
+
+    derivedtables = postgisGetAmalgamatedTables()
+
+    for table in derivedtables:
+        table_name, = table
+        postgisDropTable(table_name)
+
+def postgisDumpGeometriesInBatches(input_table, output_table, batch_size=500):
+    """
+    Dumps multi-geometries into single geometries in batches to avoid memory issues.
+    Creates a new table with individual geometries.
+    """
+
+    if postgisCheckTableExists(output_table): postgisDropTable(output_table)
+
+    postgisExec("CREATE TABLE %s (id SERIAL PRIMARY KEY, geom geometry);", (AsIs(output_table), ))
+
+    results = postgisGetResults("SELECT id FROM %s;", (AsIs(input_table), ))
+    all_ids = [row[0] for row in results]
+
+    LogMessage(f"postgisDumpGeometriesInBatches: Processing {len(all_ids)} features...")
+
+    # Process in batches
+    for i in range(0, len(all_ids), batch_size):
+        batch_ids = all_ids[i:i + batch_size]
+        LogMessage(f"postgisDumpGeometriesInBatches: [Batch {i // batch_size + 1}] Dumping {len(batch_ids)} features...")
+
+        postgisExec(f"INSERT INTO %s(geom) SELECT (ST_Dump(geom)).geom FROM %s WHERE id = ANY(%s) AND ST_IsValid(geom)", (AsIs(output_table), AsIs(input_table), batch_ids,))
+
+    LogMessage("postgisDumpGeometriesInBatches: Done.")
+
+def singleprocessAmalgamateAndDissolveGridSquareStep1(process_parameters):
+    """
+    Process single cell of grid square - to allow multiprocessing over multiple cells
+    """
+
+    target_table, grid_square_index, grid_square_count, grid_square_id, scratch_table_1, processing_grid, children_sql = \
+        process_parameters[0], process_parameters[1], process_parameters[2], process_parameters[3], process_parameters[4], process_parameters[5], process_parameters[6]
+
+    with global_count.get_lock():
+        LogMessage("STARTING: " + target_table + ": Grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count) + " [" + str(global_count.value) + " grid square(s) to be processed]")
+
+    try:
+
+        postgisExec("""
+        INSERT INTO %s 
+            SELECT final.id, final.geom
+            FROM
+            (
+                SELECT 
+                    grid.id, 
+                    (ST_Dump(ST_Intersection(grid.geom, children.geom))).geom geom
+                FROM %s grid, (%s) AS children 
+                WHERE grid.id = %s
+            ) final WHERE ST_geometrytype(final.geom) = 'ST_Polygon';""", (AsIs(scratch_table_1), AsIs(processing_grid), AsIs(children_sql), AsIs(grid_square_id), ))
+
+    except postgiserrors.InternalError as e:
+
+        LogMessage("ERROR using default SQL, retrying with ST_MakeValid wrapper")
+
+        postgisExec("""
+            INSERT INTO %s 
+                SELECT final.id, final.geom
+                FROM (
+                    SELECT 
+                        grid.id, 
+                        (ST_Dump(ST_Intersection(
+                            grid.geom,
+                            ST_MakeValid(children.geom)
+                        ))).geom AS geom
+                    FROM %s grid, (%s) AS children 
+                    WHERE grid.id = %s
+                ) final 
+                WHERE ST_GeometryType(final.geom) = 'ST_Polygon';
+        """, (AsIs(scratch_table_1), AsIs(processing_grid), AsIs(children_sql), AsIs(grid_square_id)))
+
+    with global_count.get_lock():
+        global_count.value -= 1
+        LogMessage("FINISHED: " + target_table + ": Grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count) + " [" + str(global_count.value) + " grid square(s) to be processed]")
+
+def singleprocessAmalgamateAndDissolveGridSquareStep2(process_parameters):
+    """
+    Process single cell of grid square - to allow multiprocessing over multiple cells
+    """
+
+    target_table, grid_square_index, grid_square_count, grid_square_id, scratch_table_1, scratch_table_2 = \
+        process_parameters[0], process_parameters[1], process_parameters[2], process_parameters[3], process_parameters[4], process_parameters[5] 
+
+    with global_count.get_lock():
+        LogMessage("STARTING: " + target_table + ": Grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count) + " [" + str(global_count.value) + " grid square(s) to be processed]")
+
+    postgisExec("""
+    INSERT INTO %s 
+        SELECT final.geom
+        FROM
+        (SELECT (ST_Dump(ST_Union(geom))).geom geom FROM %s AS dataset WHERE id = %s) final 
+        WHERE ST_geometrytype(final.geom) = 'ST_Polygon';""", (AsIs(scratch_table_2), AsIs(scratch_table_1), AsIs(grid_square_id), ))
+
+    with global_count.get_lock():
+        global_count.value -= 1
+        LogMessage("FINISHED: " + target_table + ": Grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count) + " [" + str(global_count.value) + " grid square(s) to be processed]")
+
+def multiprocessAmalgamateAndDissolve(amalgamate_parameters):
+    """
+    Amalgamates and dissolves all child tables into target table 
+    Uses multiprocessing to process grid squares to save time
+    """
+
+    amalgamate_id, amalgamate_output, target_table, child_tables, processing_grid_table = amalgamate_parameters[0], amalgamate_parameters[1], amalgamate_parameters[2], amalgamate_parameters[3], amalgamate_parameters[4]
+
+    LogMessage(amalgamate_output)
+
+    amalgamate_id = str(amalgamate_id).zfill(4)
+
+    processing_grid = reformatTableName(processing_grid_table)
+    grid_square_ids = postgisGetResults("SELECT id FROM %s;", (AsIs(processing_grid), ))
+    grid_square_ids = [item[0] for item in grid_square_ids]
+    grid_square_count = len(grid_square_ids)
+
+    scratch_table_1 = '_scratch_table_1_' + amalgamate_id
+    scratch_table_2 = '_scratch_table_2_' + amalgamate_id
+    scratch_table_3 = '_scratch_table_3_' + amalgamate_id
+
+    # We run process on all children - even if only one child - as process runs
+    # ST_Union (dissolve) on datasets for first time to eliminate overlapping polygons
+
+    all_tables_have_id = True
+    for table_name in child_tables:
+        if not postgisCheckColumnExists(table_name, 'id'): all_tables_have_id = False
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
+
+    LogMessage("STARTING: Amalgamation and dissolving for: " + target_table)
+
+    LogMessage(target_table + ": Amalgamate and dump all tables")
+
+    if all_tables_have_id:
+        children_sql = " UNION ".join(['SELECT id, geom FROM ' + table_name for table_name in child_tables])
+        postgisExec("CREATE TABLE %s AS SELECT children.id, (ST_Dump(children.geom)).geom geom FROM (%s) AS children;", \
+                    (AsIs(scratch_table_1), AsIs(children_sql), ))
+    else:
+        children_sql = " UNION ".join(['SELECT geom FROM ' + table_name for table_name in child_tables])
+
+        postgisExec("CREATE TABLE %s (id INTEGER, geom GEOMETRY(Polygon, 4326));", (AsIs(scratch_table_1), ))
+
+        grid_process_queue = []
+        for grid_square_index in range(len(grid_square_ids)):
+            grid_square_id = grid_square_ids[grid_square_index]
+            grid_process_queue.append([target_table, grid_square_index, grid_square_count, grid_square_id, scratch_table_1, processing_grid, children_sql])
+
+        if len(grid_process_queue) != 0:
+
+            num_cells_to_process = Value('i', len(grid_process_queue))
+            chunksize = int(len(grid_process_queue) / multiprocessing.cpu_count()) + 1
+
+            multiprocessBefore()
+
+            with Pool(processes=getNumberProcesses(), initializer=init_globals_count, initargs=(num_cells_to_process, )) as p: 
+                p.map(singleprocessAmalgamateAndDissolveGridSquareStep1, grid_process_queue, chunksize=chunksize)
+
+            multiprocessAfter()
+
+        postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_1 + "_idx"), AsIs(scratch_table_1), ))
+
+    postgisExec("CREATE INDEX %s ON %s(id);", (AsIs(scratch_table_1 + 'id_idx'), AsIs(scratch_table_1), ))
+
+    LogMessage(target_table + ": Dissolve all geometries for each processing grid square")
+
+    postgisExec("CREATE TABLE %s (geom GEOMETRY(Polygon, 4326));", (AsIs(scratch_table_2), ))
+
+    grid_process_queue = []
+    for grid_square_index in range(len(grid_square_ids)):
+        grid_square_id = grid_square_ids[grid_square_index]
+        grid_process_queue.append([target_table, grid_square_index, grid_square_count, grid_square_id, scratch_table_1, scratch_table_2])
+
+    if len(grid_process_queue) != 0:
+
+        num_cells_to_process = Value('i', len(grid_process_queue))
+        chunksize = int(len(grid_process_queue) / multiprocessing.cpu_count()) + 1
+
+        multiprocessBefore()
+
+        with Pool(processes=getNumberProcesses(), initializer=init_globals_count, initargs=(num_cells_to_process, )) as p: 
+            p.map(singleprocessAmalgamateAndDissolveGridSquareStep2, grid_process_queue, chunksize=chunksize)
+
+        multiprocessAfter()
+
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_2 + "_idx"), AsIs(scratch_table_2), ))
+
+    LogMessage(target_table + ": Dissolve all geometries across all processing grid squares")
+
+    postgisExec("CREATE TABLE %s AS SELECT ST_Union(geom) geom FROM %s;", \
+                (AsIs(scratch_table_3), AsIs(scratch_table_2), ))
+
+    LogMessage(target_table + ": Save dumped geometries")
+
+    # postgisDumpGeometriesInBatches(scratch_table_3, target_table)
+    postgisExec("CREATE TABLE %s AS SELECT (ST_Dump(geom)).geom geom FROM %s;", \
+                (AsIs(target_table), AsIs(scratch_table_3), ))
+
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(target_table + "_idx"), AsIs(target_table), ))
+
+    LogMessage("FINISHED: Created amalgamated and dissolved table: " + target_table)
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
+
+def postgisAmalgamateAndDissolve(amalgamate_parameters):
+    """
+    Amalgamates and dissolves all child tables into target table 
+    """
+
+    global CUSTOM_CONFIGURATION, PROCESSING_GRID_TABLE
+
+    amalgamate_id, amalgamate_output, target_table, child_tables, PROCESSING_GRID_TABLE, CUSTOM_CONFIGURATION = \
+        amalgamate_parameters[0], amalgamate_parameters[1], amalgamate_parameters[2], amalgamate_parameters[3], amalgamate_parameters[4], amalgamate_parameters[5]
+
+    amalgamate_id = str(amalgamate_id).zfill(4)
+    prefix = buildQueuePrefix(amalgamate_id)
+    processing_grid = reformatTableName(PROCESSING_GRID_TABLE)
+    grid_square_ids = postgisGetResults("SELECT id FROM %s;", (AsIs(processing_grid), ))
+    grid_square_ids = [item[0] for item in grid_square_ids]
+    grid_square_count = len(grid_square_ids)
+
+    scratch_table_1 = '_scratch_table_1_' + amalgamate_id
+    scratch_table_2 = '_scratch_table_2_' + amalgamate_id
+    scratch_table_3 = '_scratch_table_3_' + amalgamate_id
+
+    # We run process on all children - even if only one child - as process runs
+    # ST_Union (dissolve) on datasets for first time to eliminate overlapping polygons
+
+    all_tables_have_id = True
+    for table_name in child_tables:
+        if not postgisCheckColumnExists(table_name, 'id'): all_tables_have_id = False
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
+
+    LogMessage(prefix + "STARTING: Amalgamation and dissolving for: " + target_table)
+
+    LogMessage(prefix + target_table + ": Amalgamate and dump all tables")
+
+    if all_tables_have_id:
+        children_sql = " UNION ".join(['SELECT id, geom FROM ' + table_name for table_name in child_tables])
+        postgisExec("CREATE TABLE %s AS SELECT children.id, (ST_Dump(children.geom)).geom geom FROM (%s) AS children;", \
+                    (AsIs(scratch_table_1), AsIs(children_sql), ))
+    else:
+        children_sql = " UNION ".join(['SELECT geom FROM ' + table_name for table_name in child_tables])
+
+        postgisExec("CREATE TABLE %s (id INTEGER, geom GEOMETRY(Polygon, 4326));", (AsIs(scratch_table_1), ))
+
+        for grid_square_index in range(len(grid_square_ids)):
+            grid_square_id = grid_square_ids[grid_square_index]
+
+            LogMessage(prefix + target_table + " Generating grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count))
+
+            postgisExec("""
+            INSERT INTO %s 
+                SELECT final.id, final.geom
+                FROM
+                (
+                    SELECT 
+                        grid.id, 
+                        (ST_Dump(ST_Intersection(grid.geom, children.geom))).geom geom
+                    FROM %s grid, (%s) AS children 
+                    WHERE grid.id = %s
+                ) final WHERE ST_geometrytype(final.geom) = 'ST_Polygon';""", (AsIs(scratch_table_1), AsIs(processing_grid), AsIs(children_sql), AsIs(grid_square_id), ))
+
+        postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_1 + "_idx"), AsIs(scratch_table_1), ))
+
+    postgisExec("CREATE INDEX %s ON %s(id);", (AsIs(scratch_table_1 + 'id_idx'), AsIs(scratch_table_1), ))
+
+    LogMessage(prefix + target_table + ": Dissolve all geometries for each processing grid square")
+
+    postgisExec("CREATE TABLE %s (geom GEOMETRY(Polygon, 4326));", (AsIs(scratch_table_2), ))
+
+    for grid_square_index in range(len(grid_square_ids)):
+        grid_square_id = grid_square_ids[grid_square_index]
+
+        LogMessage(prefix + target_table + ": Dissolving grid square " + str(grid_square_index + 1) + "/" + str(grid_square_count))
+
+        postgisExec("""
+        INSERT INTO %s 
+            SELECT final.geom
+            FROM
+            (SELECT (ST_Dump(ST_Union(geom))).geom geom FROM %s AS dataset WHERE id = %s) final 
+            WHERE ST_geometrytype(final.geom) = 'ST_Polygon';""", (AsIs(scratch_table_2), AsIs(scratch_table_1), AsIs(grid_square_id), ))
+
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_2 + "_idx"), AsIs(scratch_table_2), ))
+
+    LogMessage(prefix + target_table + ": Dissolve all geometries across all processing grid squares")
+
+    postgisExec("CREATE TABLE %s AS SELECT ST_Union(geom) geom FROM %s;", \
+                (AsIs(scratch_table_3), AsIs(scratch_table_2), ))
+
+    LogMessage(prefix + target_table + ": Save dumped geometries")
+
+    try:
+        postgisExec("CREATE TABLE %s AS SELECT (ST_Dump(geom)).geom geom FROM %s;", \
+                    (AsIs(target_table), AsIs(scratch_table_3), ))
+    except postgiserrors.InternalError_ as e:
+        LogMessage("Postgis error: Geometry possibly too complex - simplifying")
+        postgisExec("CREATE TABLE %s AS SELECT (ST_Dump(ST_Simplify(geom, 0.00001))).geom AS geom FROM %s;", 
+                    (AsIs(target_table), AsIs(scratch_table_3),))
+
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(target_table + "_idx"), AsIs(target_table), ))
+
+    with global_count.get_lock(): 
+        global_count.value -= 1
+        LogMessage(prefix + "FINISHED: Created amalgamated and dissolved table: " + target_table + " [" + str(global_count.value) + " dataset(s) to be processed]")
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
+
+def postgisGetTableBounds(table_name):
+    """
+    Get bounds of all geometries in table
+    """
+
+    global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+    conn = psycopg2.connect(host=POSTGRES_HOST, dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD)
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT 
+        MIN(ST_XMin(geom)) AS left,
+        MIN(ST_YMin(geom)) AS bottom,
+        MAX(ST_XMax(geom)) AS right,
+        MAX(ST_YMax(geom)) AS top FROM %s;
+    """, (AsIs(table_name), ))
+    left, bottom, right, top = cur.fetchone()
+    conn.close()
+    return {'left': left, 'bottom': bottom, 'right': right, 'top': top}
