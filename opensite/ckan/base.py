@@ -40,7 +40,7 @@ class CKANBase:
     def query(self, formats=None):
         """
         Filters the local cache and organizes datasets by group.
-        Captures group titles to allow tree-node title syncing.
+        Captures group titles to allow graph-node title syncing.
         """
         target_formats = formats if formats is not None else self.FORMATS
         results = {}

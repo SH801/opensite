@@ -1,9 +1,10 @@
+import logging
 from opensite.app.opensite import OpenSiteApplication
 
 def main():
 
     # Run OpenSite application
-    app = OpenSiteApplication()
+    app = OpenSiteApplication(logging.INFO)
     app.run()
 
 if __name__ == "__main__":

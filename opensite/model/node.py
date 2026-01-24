@@ -22,9 +22,9 @@ import time
 class Node:
     urn: int
     name: str
-    urn_clone: Optional[int] = None # Some nodes like osm-export-tool processing will be cloned
+    global_urn: Optional[int] = None
     title: Optional[str] = None
-    node_type: Optional[str] = None  # 'source', 'destination', or None (Group)
+    node_type: Optional[str] = 'source'  # 'source', 'destination', or None (Group)
     format: Optional[str] = None
     input: Optional[str] = None
     action: Optional[str] = None  # download, import, buffer, process, osmexport, simplify, grid, amalgamate, invert
@@ -59,10 +59,10 @@ class Node:
         return None
     
     def to_json(self) -> Dict[str, Any]:
-        """Converts the node and its subtree into a JSON-serializable dictionary."""
+        """Converts the node and its subgraph into a JSON-serializable dictionary."""
         return {
             "urn": self.urn,
-            "urn_clone": self.urn_clone,
+            "global_urn": self.global_urn,
             "name": self.name,
             "node_type": self.node_type,
             "format": self.format,

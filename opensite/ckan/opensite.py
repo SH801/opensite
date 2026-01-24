@@ -7,15 +7,7 @@ from opensite.logging.opensite import OpenSiteLogger
 from opensite.download.opensite import OpenSiteDownloader
 
 class OpenSiteCKAN(CKANBase):
-    FORMATS =   [
-                    'GPKG', 
-                    'ArcGIS GeoServices REST API', 
-                    'GeoJSON', 
-                    'WFS', 
-                    'KML',
-                    OpenSiteConstants.OSM_YML_FORMAT, 
-                    OpenSiteConstants.SITES_YML_FORMAT, 
-                ]
+    FORMATS = OpenSiteConstants.CKAN_FORMATS
 
     def __init__(self, url: str, apikey: str = None, log_level=logging.INFO):
         super().__init__(url, apikey, log_level)
