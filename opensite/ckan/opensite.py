@@ -30,6 +30,7 @@ class OpenSiteCKAN(CKANBase):
         """
         Downloads YML resources matching the provided site names/slugs.
         """
+
         self.load()
         # Use the constant for 'Open Site Energy YML'
         results = self.query([OpenSiteConstants.SITES_YML_FORMAT])
@@ -61,4 +62,9 @@ class OpenSiteCKAN(CKANBase):
                         if path:
                             local_paths.append(str(path))
 
+        # sites may be a list of local YMLs
+        for site in sites:
+            if ('.yml' in site) and os.path.exists(site):
+                local_paths.append(site)
+                
         return local_paths

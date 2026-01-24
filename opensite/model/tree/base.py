@@ -13,13 +13,14 @@ class Tree:
     TREE_BRANCH_PROPERTIES = {}
     OUTPUT_FIELDS = [
         "urn", 
+        "urn_clone",
         "name", 
         "title", 
         "node_type", 
-        "url", 
         "format", 
-        "database_table", 
-        "database_action", 
+        "input", 
+        "action", 
+        "output", 
         "style", 
         "custom_properties", 
         "status", 
@@ -27,7 +28,7 @@ class Tree:
         "log"
     ]
 
-    OUTPUT_FIELDS = ['name', 'title', 'url', 'format']
+    # OUTPUT_FIELDS = ['name', 'title', 'input', 'format', 'output']
     
     def __init__(self, overrides: dict = None, log_level=logging.INFO):
         self.log = LoggingBase("Tree", log_level)
@@ -185,13 +186,17 @@ class Tree:
         self._nodes_by_urn = {self.root.urn: self.root}
         self.add_yaml(filepath)
 
-    def set_node_table_names(self, node, branch):
-        """Recursively sets the database_table field for a node and its children."""
-        node.database_table = self.get_table_name(node, branch)
-        self.log.debug(f"Setting database_table of {node.name} to {node.database_table}")
+    def set_terminal_nodes_output(self, node, branch):
+        """
+        Recursively sets the output field for all terminal nodes
+        """
+
+        if len(node.children) == 0: 
+            node.output = self.get_output(node, branch)
+            self.log.debug(f"Setting output of {node.name} to {node.output}")
 
         for child in node.children:
-            self.set_node_table_names(child, branch)
+            self.set_terminal_nodes_output(child, branch)
 
     def add_yaml(self, filepath: str):
         """Adds a YAML file as a new sibling branch under the root."""
@@ -225,7 +230,7 @@ class Tree:
         # Build raw structure into this branch
         self.build_from_dict(processed_data, branch_node)
 
-        self.set_node_table_names(branch_node, branch_node)
+        self.set_terminal_nodes_output(branch_node, branch_node)
 
         return True
 
@@ -266,35 +271,7 @@ class Tree:
                     child.parent = parent_node
                     parent_node.children.append(child)
 
-    def update_database_table_fields(self):
-        """
-        Recursively traverses the tree to set the 'database_table' property 
-        on every node based on its containing branch and configuration state.
-        """
-        # 1. Identify all branches directly under the root
-        # (Assuming your add_yaml logic attaches files as direct children of root)
-        for branch in self.root.children:
-            
-            # We only process nodes that are actually branches (have the hash)
-            if 'hash' not in branch.custom_properties:
-                continue
-                
-            # 2. Define a recursive helper to tag the branch and all its descendants
-            def tag_node(current_node):
-                # Use the function we built to generate the unique name
-                table_name = self.get_table_name(current_node, branch)
-                
-                # Set the field on the node (or within custom_properties)
-                current_node.database_table = table_name
-                
-                # Continue down the tree
-                for child in current_node.children:
-                    tag_node(child)
-
-            # 3. Start the recursion from this branch down
-            tag_node(branch)
-
-    def get_table_name(self, node, branch) -> str:
+    def get_output(self, node, branch) -> str:
         """
         Generates a PostGIS-safe table name.
         Uses the node for the name identity and the branch for the data state hash.
@@ -303,18 +280,18 @@ class Tree:
         # Generate shortened Name Hash (8 chars) from specific node name
         # This ensures 'Turbine-1' and 'Turbine-2' get different tables
         node_name_clean = str(node.name).strip().lower()
-        node_hash = hashlib.md5(node_name_clean.encode()).hexdigest()[:8]
+        node_hash = hashlib.md5(node_name_clean.encode()).hexdigest()
 
-        yml_hash = branch.custom_properties.get('hash')
+        # yml_hash = branch.custom_properties.get('hash')
         
-        if not yml_hash:
-            raise ValueError(
-                f"Branch '{branch.name}' is missing the 'hash' in custom_properties. "
-                "Table name cannot be generated without the state fingerprint."
-            )
+        # if not yml_hash:
+        #     raise ValueError(
+        #         f"Branch '{branch.name}' is missing the 'hash' in custom_properties. "
+        #         "Table name cannot be generated without the state fingerprint."
+        #     )
 
         # Prefixing with 'opensite' ensures it starts with a letter
-        table_name = f"opensite_{node_hash}_{yml_hash}"
+        table_name = f"opensite_{node_hash}"
 
         return table_name
 

@@ -2,6 +2,7 @@ import os
 import logging
 import psycopg2
 from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
 from opensite.logging.base import LoggingBase
 
 class PostGISBase:
@@ -37,11 +38,27 @@ class PostGISBase:
             self.pool.putconn(conn)
 
     def fetch_all(self, query, params=None):
-        """Standard wrapper to fetch results."""
+        """Standard wrapper to fetch results as a list of dictionaries."""
         conn = self.pool.getconn()
         try:
-            with conn.cursor() as cursor:
+            # Specifying RealDictCursor makes fetchall() return [ {'col': val}, ... ]
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params)
                 return cursor.fetchall()
         finally:
             self.pool.putconn(conn)
+
+    def get_table_names(self, schema='public'):
+        """
+        Returns a set of physical table names present in the specified schema.
+        Uses the standard fetch_all tuple-return format.
+        """
+        sql = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = %s 
+            AND table_type = 'BASE TABLE'
+        """
+        results = self.fetch_all(sql, (schema,))
+        
+        return {row['table_name'] for row in results}

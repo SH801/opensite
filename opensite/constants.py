@@ -6,7 +6,7 @@ class OpenSiteConstants:
     """Arbitrary application constants that don't change per environment."""
 
     # Default logging level for entire application
-    LOGGING_LEVEL       = logging.INFO
+    LOGGING_LEVEL       = logging.DEBUG
 
     # Format text used by CKAN to indicate osm-export-tool YML file
     OSM_YML_FORMAT      = "osm-export-tool YML"

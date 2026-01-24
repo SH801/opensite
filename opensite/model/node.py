@@ -22,16 +22,17 @@ import time
 class Node:
     urn: int
     name: str
+    urn_clone: Optional[int] = None # Some nodes like osm-export-tool processing will be cloned
     title: Optional[str] = None
     node_type: Optional[str] = None  # 'source', 'destination', or None (Group)
-    url: Optional[str] = None
     format: Optional[str] = None
-    database_table: Optional[str] = None
-    database_action: Optional[str] = None  # buffer, simplify, grid, amalgamate, invert
+    input: Optional[str] = None
+    action: Optional[str] = None  # download, import, buffer, process, osmexport, simplify, grid, amalgamate, invert
+    output: Optional[str] = None
     style: Optional[Dict[str, Any]] = None
     custom_properties: Dict[str, Any] = field(default_factory=dict)
     status: str = "unprocessed"
-    
+
     @property
     def dependencies(self) -> List[int]:
         """Automatically returns a list of URNs for all direct children."""
@@ -61,12 +62,13 @@ class Node:
         """Converts the node and its subtree into a JSON-serializable dictionary."""
         return {
             "urn": self.urn,
+            "urn_clone": self.urn_clone,
             "name": self.name,
             "node_type": self.node_type,
-            "location": self.location,
             "format": self.format,
-            "database_table": self.database_table,
-            "database_action": self.database_action,
+            "input": self.input,
+            "action": self.action,
+            "output": self.output,
             "style": self.style,
             "custom_properties": self.custom_properties,
             "status": self.status,

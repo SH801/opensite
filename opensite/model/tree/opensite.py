@@ -17,6 +17,7 @@ class OpenSiteTree(Tree):
 
         self.log = OpenSiteLogger("OpenSiteTree", log_level)
         self.db = OpenSitePostGIS()
+        self.db.sync_registry()
 
         self.log.info("Tree initialized and ready.")
         
@@ -26,7 +27,7 @@ class OpenSiteTree(Tree):
 
         def _recurse_and_register(node, branch):
             # Use debug for high-volume mapping logs (White)
-            self.log.debug(f"Mapping node: {node.name} -> {node.database_table}")
+            self.log.debug(f"Mapping node: {node.name} -> {node.output}")
             self.db.register_node(node, branch)
             
             for child in node.children:
@@ -260,7 +261,6 @@ class OpenSiteTree(Tree):
             if group_name != 'default':
                 ckan_lookup[group_name] = {
                     'title': data.get('group_title', group_name).strip(),
-                    # 'url': f"{ckan_base}/group/{group_name}"
                 }
 
             # Add priority resource within each dataset
@@ -271,7 +271,7 @@ class OpenSiteTree(Tree):
                 if package_name:
                     ckan_lookup[package_name] = {
                         'title': dataset.get('title').strip(), 
-                        'url': priority_resource.get('url').strip(),
+                        'input': priority_resource.get('url').strip(),
                         'format': priority_resource.get('format').strip()
                     }
                 
@@ -281,7 +281,7 @@ class OpenSiteTree(Tree):
             if node.name in ckan_lookup:
                 meta = ckan_lookup[node.name]
                 node.title = meta['title']
-                if 'url' in meta: node.url = meta['url']
+                if 'input' in meta: node.input = meta['input']
                 if 'format' in meta: node.format = meta['format'] 
                 matches += 1
             
