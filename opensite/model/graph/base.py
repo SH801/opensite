@@ -31,6 +31,7 @@ class Graph:
     ]
 
     # OUTPUT_FIELDS = ['name', 'title', 'custom_properties']
+    OUTPUT_FIELDS = ['urn', 'global_urn', 'node_type']
     
     def __init__(self, overrides: dict = None, log_level=logging.INFO):
         """
@@ -378,7 +379,13 @@ class Graph:
 
         return new_group
 
-    def generate_graph_preview(self, filename="graph_preview.html"):
+    def truncate_label(self, text, max_length=20):
+        """Truncates text and adds ellipsis if it exceeds max_length."""
+        if text and len(text) > max_length:
+            return text[:max_length-3] + "..."
+        return text
+
+    def generate_graph_preview(self, filename="graph_preview.html", load=False):
         """
         Generates an interactive HTML preview.
         - Skips root node to show branches as separate networks.
@@ -450,9 +457,11 @@ class Graph:
             node_json = node.to_json()
             del node_json['children']
             properties_json = json.dumps(node_json, indent=2)
+            label = node.title if node.title else node.name
+            label = self.truncate_label(label, max_length=45)
             net.add_node(
                 node.urn, 
-                label=node.title if node.title else node.name, 
+                label=label, 
                 color=color,
                 title=f"[URN:{node.urn}] {node.title}",
                 properties=properties_json
@@ -515,9 +524,10 @@ class Graph:
                 f.write(white_panel_html)
             self.log.info(f"Successfully generated {filename}")
 
-            # Trigger loading of file
-            file_path = os.path.abspath(filename)
-            webbrowser.open(f"file://{file_path}")
+            if load:
+                # Trigger loading of file
+                file_path = os.path.abspath(filename)
+                webbrowser.open(f"file://{file_path}")
 
         except Exception as e:
             self.log.error(f"Failed to generate graph preview: {e}")

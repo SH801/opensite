@@ -5,29 +5,21 @@ from opensite.logging.opensite import OpenSiteLogger
 from opensite.cli.opensite import OpenSiteCLI
 from opensite.ckan.opensite import OpenSiteCKAN
 from opensite.model.graph.opensite import OpenSiteGraph
+from opensite.queue.opensite import OpenSiteQueue
 
 class OpenSiteApplication:
     def __init__(self, log_level=OpenSiteConstants.LOGGING_LEVEL):
         self._prepare_environment()
         self.log = OpenSiteLogger("OpenSite-App")
         self.log.info("Application initialized")
-        self.log_level = log_level
+        self.log_level = os.getenv("OPENSITE_LOG_LEVEL", log_level)
 
     def _prepare_environment(self):
         """Creates required system folders defined in constants."""
-        folders = [OpenSiteConstants.BUILD_ROOT, OpenSiteConstants.DOWNLOAD_FOLDER]
+        folders = OpenSiteConstants.ALL_FOLDERS
         for folder in folders:
             if not folder.exists():
                 folder.mkdir(parents=True, exist_ok=True)
-
-    def get_loglevel(self):
-        """
-        Retrieves log level from environment or CLI arguments.
-        Defaults to INFO if nothing is provided.
-        """
-        # Checks shell ENV first, then defaults
-        level = os.getenv("OPENSITE_LOG_LEVEL", self.log_level)
-        return self.log_level
 
     def run(self):
         """
@@ -52,11 +44,20 @@ class OpenSiteApplication:
 
         if cli.get_preview():
             # Generate graph visualisation
-            graph.generate_graph_preview()
+            graph.generate_graph_preview(load=True)
 
-        # Don't stop at graph preview but continue onto processing
+        # Run processing queue
+        queue = OpenSiteQueue(graph, log_level=self.log_level)
+        queue.run()
 
-        print(json.dumps(graph.to_list(), indent=4))
+        # graph_list = graph.to_list()
+        # osm_downloaders = []
+        # for item in graph_list:
+        #     if item['node_type'] == 'osm-downloader':
+        #         osm_downloaders.append(item)
+        # print(json.dumps(osm_downloaders, indent=4))
+
+        # print(json.dumps(graph_list, indent=4))
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

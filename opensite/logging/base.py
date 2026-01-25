@@ -1,5 +1,6 @@
 import logging
 import sys
+import multiprocessing
 
 class ColorFormatter(logging.Formatter):
     """Custom Formatter to add colors to log levels for Terminal only."""
@@ -27,9 +28,10 @@ class ColorFormatter(logging.Formatter):
         return formatter.format(record)
 
 class LoggingBase:
-    def __init__(self, name: str, level=logging.DEBUG):
+    def __init__(self, name: str, level=logging.DEBUG, lock: multiprocessing.Lock = None):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
+        self.lock = lock
         
         if not self.logger.handlers:
             # 1. Terminal Handler (WITH COLORS)
@@ -47,7 +49,31 @@ class LoggingBase:
             file_handler.setFormatter(clean_formatter)
             self.logger.addHandler(file_handler)
 
-    def debug(self, msg): self.logger.debug(msg)
-    def info(self, msg): self.logger.info(msg)
-    def warning(self, msg): self.logger.warning(msg)
-    def error(self, msg): self.logger.error(msg)
+    def debug(self, msg: str):
+        if self.lock:
+            with self.lock:
+                self.logger.debug(msg)
+        else:
+            self.logger.debug(msg)
+
+    def info(self, msg: str):
+        if self.lock:
+            with self.lock:
+                self.logger.info(msg)
+        else:
+            self.logger.info(msg)
+
+    def warning(self, msg: str):
+        if self.lock:
+            with self.lock:
+                self.logger.warning(msg)
+        else:
+            self.logger.warning(msg)
+
+    def error(self, msg: str):
+        if self.lock:
+            with self.lock:
+                self.logger.error(msg)
+        else:
+            self.logger.error(msg)
+

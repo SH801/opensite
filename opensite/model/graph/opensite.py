@@ -61,6 +61,37 @@ class OpenSiteGraph(Graph):
 
         self.log.info("Database synchronization complete.")
 
+    def get_action_groups(self):
+        """
+        Groups actions based on execution profile. 
+        'import' and 'amalgamate' are CPU/DB intensive PostGIS operations.
+        """
+        return {
+            "io_bound": [
+                'download', 
+                'unzip', 
+                'concatenate'
+            ],
+            "cpu_bound": [
+                'run', 
+                'buffer', 
+                'import',
+                'amalgamate'
+            ],
+            "terminal": [
+                'processed', 
+                'failed'
+            ]
+        }
+
+    def get_distinct_actions(self):
+        """
+        Returns every unique action currently present in the actual graph nodes.
+        Useful for debugging and ensuring the processor handles everything.
+        """
+        all_nodes = self.find_nodes_by_props({})
+        return sorted(list(set(node.get('action') for node in all_nodes if node.get('action'))))
+
     def convert_name_to_title(self, name: str) -> str:
         """
         'railway-lines--uk' -> 'Railway Lines'
@@ -341,14 +372,16 @@ class OpenSiteGraph(Graph):
         self.add_unzips()
 
         # Generate osm-export-tool nodes
-        self.add_osmexporttool_nodes()
+        self.add_osmexporttool()
 
         # Generate buffer nodes
         self.add_buffers()
 
+        # # # Generate post-import processing nodes
+        # # self.add_postimport()
+
         # Update database registry with new nodes
         self.register_to_database()
-
 
     def add_parents(self):
         """
@@ -404,58 +437,81 @@ class OpenSiteGraph(Graph):
 
         process_node(self.root)
 
+    def get_osm_path(self, osm_file):
+        """
+        Gets path to osm download file relative to downloads folder
+        """
+        
+        full_path = OpenSiteConstants.OSM_FOLDER / osm_file
+        relative_path = full_path.relative_to(OpenSiteConstants.DOWNLOAD_FOLDER)
+        return str(relative_path)
+
     def add_downloads(self):
         """
         Identifies terminal nodes with remote inputs and inserts a 
-        'download' node as a child. Sets local file paths for the parent.
+        'download' node as a child. Deduplicates by URL using global_urn.
         """
-        
         self.log.info("Adding download nodes for remote datasources...")
         
-        # 1. Gather all current terminal nodes from base helper
+        # 1. Map to track URLs we've already seen in this graph build
+        url_to_urn = {}
+        
         terminals = self.get_terminal_nodes()
 
         for node in terminals:
-            # 2. Check for remote input
             input_url = getattr(node, 'input', '')
             if isinstance(input_url, str) and input_url.startswith('http'):
                 
                 node.action = 'import'
-
-                # 3. Determine extension using OpenSiteConstants
                 node_format = getattr(node, 'format', 'Unknown')
                 extension = OpenSiteConstants.CKAN_FILE_EXTENSIONS.get(node_format, 'ERROR')
                 
-                # 4. Create unique URN and instantiate the child
-                download_urn = self.get_new_urn()
-                download_name = f"{node.name}"
-                download_title = f"Download - {node.title}"
-                
-                download_node = Node(
-                    name=download_name, 
-                    title=download_title, 
-                    urn=download_urn
-                )
+                # 2. Deduplication Logic: Check if we've seen this URL before
+                if input_url in url_to_urn:
+                    # Retrieve the existing global_urn for this specific URL
+                    existing_global_urn = url_to_urn[input_url]
+                    
+                    # Create a new Node instance, but give it the SHARED global_urn
+                    # Note: The local URN must still be unique for the graph structure
+                    download_urn = self.get_new_urn()
+                    download_node = Node(
+                        name=f"{node.name}", 
+                        title=f"Shared Download - {node.title}", 
+                        urn=download_urn
+                    )
+                    download_node.global_urn = existing_global_urn
+                    self.log.debug(f"Reusing global_urn {existing_global_urn} for duplicate URL: {input_url}")
+                else:
+                    # First time seeing this URL: generate a fresh global_urn
+                    download_urn = self.get_new_urn()
+                    download_node = Node(
+                        name=f"{node.name}", 
+                        title=f"Download - {node.title}", 
+                        urn=download_urn
+                    )
+                    # Use a new global URN for the first instance
+                    download_node.global_urn = self.get_new_global_urn() 
+                    url_to_urn[input_url] = download_node.global_urn
 
-                # 5. Configure Download node properties
+                # 3. Configure common Download node properties
                 download_node.node_type = 'download'
-                download_node.custom_properties = {}
-                download_node.input = node.input  # Move the URL to the child
-                download_node.output = f"{node.name}.{extension}" # Local filename
+                download_node.input = input_url
                 download_node.format = node.format
                 download_node.action = 'download'
+                
+                # Determine local output path
+                if download_node.format in OpenSiteConstants.OSM_DOWNLOADS:
+                    osm_file = f"{node.name}.{extension}"
+                    download_node.output = self.get_osm_path(osm_file)
+                else:
+                    download_node.output = f"{node.name}.{extension}"
 
-                # 6. Re-wire the Parent: 
-                # Parent now expects the local file generated by the child
+                # 4. Re-wire the Parent
                 node.input = download_node.output
                 
                 if not hasattr(node, 'children'):
                     node.children = []
                 node.children.append(download_node)
-                
-                self.log.debug(
-                    f"Added download (URN: {download_urn}) for parent (URN: {node.urn})"
-                )
 
     def add_unzips(self):
         """
@@ -509,7 +565,7 @@ class OpenSiteGraph(Graph):
                 
                 self.log.debug(f"Inserted unzip step for {zip_output} (URN: {node.urn})")
 
-    def add_osmexporttool_nodes(self):
+    def add_osmexporttool(self):
         """
         Builds the OSM stack: Runner is the parent, with Downloader 
         and Concatenator as siblings beneath it.
@@ -561,13 +617,14 @@ class OpenSiteGraph(Graph):
                 down_node = Node(
                     name=f"osm-downloader--{osm_url}",
                     title=f"Download OSM Source - {osm_url_basename}",
+                    format='OSM',
                     urn=self.get_new_urn()
                 )
                 down_node.global_urn = down_gurn
                 down_node.action = 'download'
                 down_node.node_type = 'osm-downloader'
                 down_node.input = osm_url
-
+                
                 # --- LAYER 3: Runner ---
                 run_node = Node(
                     name=f"osm-runner--{osm_url}",
@@ -585,6 +642,9 @@ class OpenSiteGraph(Graph):
                     if not hasattr(n, 'custom_properties') or n.custom_properties is None:
                         n.custom_properties = {}
                     n.custom_properties['osm'] = osm_url
+
+                # Ensure we set path to osm datafile download
+                down_node.output = self.get_osm_path(osm_url_basename)
 
                 # 4. Splicing logic
                 # Insert concat above download
