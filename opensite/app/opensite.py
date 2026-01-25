@@ -50,17 +50,13 @@ class OpenSiteApplication:
         # Generate all required processing steps
         graph.explode()
 
-        # Generate graph visualisation
-        graph.generate_graph_preview()
+        if cli.get_preview():
+            # Generate graph visualisation
+            graph.generate_graph_preview()
 
-        if not cli.get_preview():
-            # Don't stop at graph preview but continue onto processing
+        # Don't stop at graph preview but continue onto processing
 
-            # source_nodes = graph.find_nodes_by_props({'node_type': 'source'})
-            # print(json.dumps(source_nodes, indent=4))
-
-            print(json.dumps(graph.to_list(), indent=4))
-
+        print(json.dumps(graph.to_list(), indent=4))
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

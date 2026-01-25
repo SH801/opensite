@@ -24,6 +24,15 @@ class OpenSiteGraph(Graph):
 
         self.log.info("Graph initialized and ready.")
         
+    def is_database_output(self, output):
+        """
+        Checks whether output is database output
+        """
+
+        if output:
+            if output.startswith(r"opensite_"): return True
+        return False
+    
     def register_to_database(self):
         """Syncs the graph structure to PostGIS using the logger for feedback."""
         self.log.info("Starting database synchronization...")
@@ -31,7 +40,8 @@ class OpenSiteGraph(Graph):
         def _recurse_and_register(node, branch):
             # Use debug for high-volume mapping logs (White)
             self.log.debug(f"Mapping node: {node.name} -> {node.output}")
-            self.db.register_node(node, branch)
+            if self.is_database_output(node.output):
+                self.db.register_node(node, branch)
             
             for child in node.children:
                 _recurse_and_register(child, branch)
@@ -172,7 +182,8 @@ class OpenSiteGraph(Graph):
         # 5. Enrichment Loop (Math & Style)
         for category_node in struct_root.children:
             category_node.node_type = 'group'
-            
+            category_node.action = 'amalgamate'
+
             # Apply Style
             if style_root:
                 style_match = self.find_child(style_root, category_node.name)
@@ -194,7 +205,7 @@ class OpenSiteGraph(Graph):
                         val = buf_node.custom_properties.get('value')
                         dataset_node.database_action = "buffer"
                         # Math resolution uses the branch-specific context
-                        dataset_node.custom_properties['buffer_value'] = self.resolve_math(val, context)
+                        dataset_node.custom_properties['buffer'] = self.resolve_math(val, context)
 
             
 
@@ -332,6 +343,13 @@ class OpenSiteGraph(Graph):
         # Generate osm-export-tool nodes
         self.add_osmexporttool_nodes()
 
+        # Generate buffer nodes
+        self.add_buffers()
+
+        # Update database registry with new nodes
+        self.register_to_database()
+
+
     def add_parents(self):
         """
         Groups sibling nodes, derives the group title from children, 
@@ -402,6 +420,8 @@ class OpenSiteGraph(Graph):
             input_url = getattr(node, 'input', '')
             if isinstance(input_url, str) and input_url.startswith('http'):
                 
+                node.action = 'import'
+
                 # 3. Determine extension using OpenSiteConstants
                 node_format = getattr(node, 'format', 'Unknown')
                 extension = OpenSiteConstants.CKAN_FILE_EXTENSIONS.get(node_format, 'ERROR')
@@ -591,3 +611,55 @@ class OpenSiteGraph(Graph):
                     runner_parent.custom_properties['osm'] = osm_url
 
         self.log.debug("OSM Tree complete: Runner is now parent to both Downloader and Concatenator.")
+
+    def add_buffers(self):
+        """
+        Inserts a buffer node above any node with a 'buffer' custom property.
+        The buffer node consumes the child node's output.
+        """
+
+        self.log.info("Applying buffer layers...")
+
+        # Identify nodes that need buffering
+        # We collect them in a list first to avoid iterator issues during graph mutation
+        target_nodes = [
+            self.find_node_by_urn(d['urn']) 
+            for d in self.find_nodes_by_props({}) 
+            if d.get('custom_properties', {}).get('buffer') is not None
+        ]
+
+        for node in target_nodes:
+            buffer = node.custom_properties['buffer']
+            
+            # Define the new name and properties
+            new_name = f"{node.name}--buffer-{buffer}"
+            
+            buffer_node = Node(
+                name=new_name,
+                title=f"{node.title} - Buffer {buffer}m",
+                urn=self.get_new_urn()
+            )
+
+            # 3. Configure the Buffer Node
+            buffer_node.action = 'buffer'
+            buffer_node.node_type = 'process'
+            buffer_node.global_urn = self.get_new_global_urn()
+            
+            # Clone properties so we keep lineage (like 'osm' URL)
+            buffer_node.custom_properties = node.custom_properties.copy()
+            
+            # Recalculate output based on the new name
+            buffer_node.output = self.get_output(buffer_node)
+
+            # SET INPUT: The buffer node processes the output of the original node
+            buffer_node.input = node.output
+
+            # 4. Splice the buffer node in as the parent
+            self.insert_parent(node, buffer_node)
+
+            # 5. Clean up: Unset the buffer property on the original child
+            # so the graph reflects that the buffer has been handled by the parent
+            if 'buffer' in node.custom_properties:
+                node.custom_properties.pop('buffer', None)
+
+        self.log.debug(f"Successfully wrapped {len(target_nodes)} nodes with buffer processes.")

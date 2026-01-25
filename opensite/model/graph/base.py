@@ -3,6 +3,7 @@ import os
 import json
 import hashlib
 import logging
+import webbrowser
 from typing import Optional, Dict, Any, List
 from pyvis.network import Network
 from opensite.model.node import Node
@@ -386,10 +387,10 @@ class Graph:
         self.log.info(f"Generating interactive graph preview: {filename}")
         
         net = Network(
-            height="1000px", 
+            height="100vh", 
             width="100%", 
-            bgcolor="#222222", 
-            font_color="white", 
+            bgcolor="#ffffff", 
+            font_color="black", 
             directed=True,
             notebook=False 
         )
@@ -405,10 +406,17 @@ class Graph:
         )
 
         options = {
+            "nodes": {
+                "font": {
+                "size": 18,
+                "face": "Tahoma",
+                "color": "#343434"
+                }
+            },
             "layout": {
                 "hierarchical": {
                     "enabled": True,
-                    "levelSeparation": 300,    # Vertical distance between levels
+                    "levelSeparation": 1000,    # Vertical distance between levels
                     "nodeSpacing": 400,         # Horizontal distance between nodes
                     "treeSpacing": 600,         # Distance between different 'islands'
                     "blockShifting": True,
@@ -446,7 +454,7 @@ class Graph:
                 node.urn, 
                 label=node.title if node.title else node.name, 
                 color=color,
-                title=f"URN: {node.urn}",
+                title=f"[URN:{node.urn}] {node.title}",
                 properties=properties_json
             )
 
@@ -462,6 +470,16 @@ class Graph:
                 add_to_vis(top_level_branch)
 
         white_panel_html = """
+            <div id="graph-title" style="
+                position: fixed; top: 10px; left: 50%; 
+                transform: translateX(-50%);
+                background: rgba(255, 255, 255, 0.8);
+                padding: 10px 20px; border-radius: 5px;
+                border: 1px solid #ccc; font-family: sans-serif;
+                z-index: 1000; font-size: 20px; font-weight: bold;">
+                Open Site Energy: Processing graph
+            </div>
+
             <div id="property-panel" style="
                 position: fixed; top: 10px; right: 10px; 
                 width: 500px; height: 90%; 
@@ -496,6 +514,11 @@ class Graph:
             with open(filename, "a") as f:
                 f.write(white_panel_html)
             self.log.info(f"Successfully generated {filename}")
+
+            # Trigger loading of file
+            file_path = os.path.abspath(filename)
+            webbrowser.open(f"file://{file_path}")
+
         except Exception as e:
             self.log.error(f"Failed to generate graph preview: {e}")
 
@@ -561,7 +584,7 @@ class Graph:
         """
 
         if len(node.children) == 0: 
-            node.output = self.get_output(node, branch)
+            node.output = self.get_output(node)
             self.log.debug(f"Setting output of {node.name} to {node.output}")
 
         for child in node.children:
@@ -646,7 +669,7 @@ class Graph:
                     child.parent = parent_node
                     parent_node.children.append(child)
 
-    def get_output(self, node, branch) -> str:
+    def get_output(self, node) -> str:
         """
         Generates a PostGIS-safe table name.
         Uses the node for the name identity and the branch for the data state hash.
@@ -656,14 +679,6 @@ class Graph:
         # This ensures 'Turbine-1' and 'Turbine-2' get different tables
         node_name_clean = str(node.name).strip().lower()
         node_hash = hashlib.md5(node_name_clean.encode()).hexdigest()
-
-        # yml_hash = branch.custom_properties.get('hash')
-        
-        # if not yml_hash:
-        #     raise ValueError(
-        #         f"Branch '{branch.name}' is missing the 'hash' in custom_properties. "
-        #         "Table name cannot be generated without the state fingerprint."
-        #     )
 
         # Prefixing with 'opensite' ensures it starts with a letter
         table_name = f"opensite_{node_hash}"
