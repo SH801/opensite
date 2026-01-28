@@ -31,31 +31,7 @@ def processDataset(dataset_parameters):
     with global_count.get_lock(): 
         LogMessage(prefix + "STARTING: Processing: " + source_table + " [" + str(global_count.value) + " dataset(s) to be processed]")
 
-    if buffer is not None:
-        buffered_table = buildBufferTableName(dataset_name, buffer)
-        processed_table = buildProcessedTableName(buffered_table)
-        table_exists = postgisCheckTableExists(buffered_table)
-        if REGENERATE_OUTPUT or (not table_exists):
-            LogMessage(prefix + "Adding " + buffer + "m buffer: " + source_table + " -> " + buffered_table)
-            if table_exists: postgisDropTable(buffered_table)
 
-            # Make special exception for hedgerow as hedgerow polygons represent boundaries that should be buffered as lines
-            buffer_polygons_as_lines = False
-            if 'hedgerow' in buffered_table: buffer_polygons_as_lines = True
-
-            if buffer_polygons_as_lines:
-                postgisExec("""
-                CREATE TABLE %s AS 
-                (
-                    (SELECT ST_Buffer(geom::geography, %s)::geometry geom FROM %s WHERE ST_geometrytype(geom) = 'ST_LineString') UNION 
-                    (SELECT ST_Buffer(ST_Boundary(geom)::geography, %s)::geometry geom FROM %s WHERE ST_geometrytype(geom) IN ('ST_Polygon', 'ST_MultiPolygon'))
-                );""", \
-                    (AsIs(buffered_table), float(buffer), AsIs(source_table), float(buffer), AsIs(source_table), ))
-            else:
-                postgisExec("CREATE TABLE %s AS SELECT ST_Buffer(geom::geography, %s)::geometry geom FROM %s;", \
-                            (AsIs(buffered_table), float(buffer), AsIs(source_table), ))
-            postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(buffered_table + "_idx"), AsIs(buffered_table), ))
-        source_table = buffered_table
 
     # Dump original or buffered layer and run processing on it
 

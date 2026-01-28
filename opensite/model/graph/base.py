@@ -163,7 +163,7 @@ class Graph:
                     return found
         return None
 
-    def find_nodes_by_props(self, search_dict, current_node=None, matches=None):
+    def find_nodes_by_props(self, search_dict={}, current_node=None, matches=None):
         """
         Recursively finds nodes that match all key-value pairs in search_dict.
         Returns a list of dictionaries (using _node_to_dict).

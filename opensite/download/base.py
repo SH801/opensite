@@ -2,6 +2,7 @@ import logging
 import os
 import requests
 import time
+import sqlite3
 from pathlib import Path
 from typing import Union, Any
 from opensite.logging.base import LoggingBase
@@ -114,8 +115,11 @@ class DownloadBase:
         destination = self.base_path / subfolder / filename
         
         if destination.exists() and not force:
-            self.log.warning(f"{filename}: File exists, skipping")
-            return destination
+            if self.check_download_valid(str(destination)):
+                self.log.warning(f"{filename}: File exists, skipping")
+                return destination
+            else:
+                return None
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = destination.with_suffix(destination.suffix + '.tmp')
@@ -123,7 +127,7 @@ class DownloadBase:
         try:
             self.log.info(f"Downloading: {url}")
             
-            # 1. Get total size from headers if available (fallback to our cached _remote_size)
+            # Get total size from headers if available (fallback to our cached _remote_size)
             with requests.get(url, stream=True, timeout=60) as r:
                 r.raise_for_status()
                 total_size = int(r.headers.get('content-length', 0))
@@ -132,13 +136,12 @@ class DownloadBase:
                 last_log_time = time.time()
                 
                 with open(tmp_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=1024 * 64): # Increased chunk size for efficiency
+                    for chunk in r.iter_content(chunk_size=1024 * 64):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
                             
-                            # Progress Reporting Logic
-                            # Only log every 5 seconds to avoid flooding the terminal
+                            # Progress reporting - log every DOWNLOAD_INTERVAL_TIME seconds to avoid flooding terminal
                             current_time = time.time()
                             if current_time - last_log_time > self.DOWNLOAD_INTERVAL_TIME:
                                 if total_size > 0:
@@ -151,19 +154,74 @@ class DownloadBase:
                                 
                                 last_log_time = current_time
 
-            # Final success log
             final_mb = downloaded / (1024 * 1024)
             self.log.info(f"Completed [{filename}]: {final_mb:.1f} MB")
             
             if Path(destination).exists() and not Path(tmp_path).exists():
                 self.log.info(f"File {filename} already finalized. Skipping move.")
-                return destination
-        
+                return self.check_download_valid(str(destination))
+                    
             os.replace(tmp_path, destination)
-            return destination
+
+            while True:
+                if Path(destination).exists(): break
+                self.log.warning(f"Waiting for {destination} to be created")
+                time.sleep(1)
+
+            return self.check_download_valid(str(destination))
 
         except Exception as e:
             self.log.error(f"Download failed: {e}")
             if tmp_path.exists():
                 tmp_path.unlink()
             return None
+
+    def check_download_valid(self, file_path):
+        """
+        Checks whether file is valid
+        Only GPKG currently supported
+        """
+
+        if not Path(file_path).exists(): return None
+
+        if file_path.endswith('.gpkg'):
+            try:
+                with sqlite3.connect(file_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='gpkg_contents';")
+                    if not cursor.fetchone():
+                        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='geometry_columns';")
+                        if cursor.fetchone():
+                            self.log.warning(f"{os.path.basename(file_path)} is SpatiaLite, not GeoPackage. Skipping.")
+                            return file_path
+                        
+                        self.log.error(f"{os.path.basename(file_path)} is not a valid GeoPackage, deleting.")
+                        os.remove(file_path)
+                        return None
+
+                    # Robust query: only use tables that are guaranteed to exist
+                    cursor.execute("""
+                        SELECT table_name, data_type 
+                        FROM gpkg_contents;
+                    """)
+                    result = cursor.fetchall()
+
+                    if len(result) == 0:
+                        self.log.error(f"{os.path.basename(file_path)} has no registered layers, deleting.")
+                        os.remove(file_path)
+                        return None
+                    
+                    return result
+
+            except sqlite3.DatabaseError as e:
+                # Check specifically for corruption vs. just a lock
+                if "malformed" in str(e):
+                    self.log.error(f"CORRUPTION: {os.path.basename(file_path)} is malformed. Deleting.")
+                    os.remove(file_path)
+                else:
+                    self.log.error(f"LOCK/ACCESS ISSUE: {os.path.basename(file_path)} - {e}")
+                return None
+                        
+        return file_path

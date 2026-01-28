@@ -1,6 +1,9 @@
+import os
 import logging
+import yaml
 from pathlib import Path
 from opensite.logging.base import LoggingBase
+
 class ProcessBase:
     def __init__(self, node, log_level=logging.INFO, shared_lock=None, shared_metadata=None):
         self.node = node
@@ -18,12 +21,22 @@ class ProcessBase:
         
         self.shared_metadata[var_key] = value
 
-    def get_output_variable(self, var_name: str) -> str:
+    def get_variable(self, var_name: str) -> str:
         """
         Retrieves a value from the shared metadata registry.
         var_name should be the full string: 'VAR:global_output_76'
         """
         return self.shared_metadata.get(var_name)
+
+    def get_top_variable(self, file_path):
+        """Get topmost variable from yaml file - needed to determine osm-export-tool layer name"""
+        with open(file_path, 'r') as f:
+            data = yaml.load(f, Loader=yaml.SafeLoader)
+            
+        if data and isinstance(data, dict):
+            # Use next(iter()) to efficiently get the first key
+            return next(iter(data))
+        return None
 
     def run(self):
         """Main entry point for the process."""
@@ -39,3 +52,4 @@ class ProcessBase:
         if not path.is_absolute() and self.base_path:
             return (Path(self.base_path) / path).resolve()
         return path.resolve()
+    

@@ -15,26 +15,12 @@ class OpenSiteRunner(ProcessBase):
         self.log = OpenSiteLogger("OpenSiteRunner", log_level, shared_lock)
         self.base_path = OpenSiteConstants.OSM_FOLDER
 
-    def _get_env_python(self):
-        """Locates the python binary inside the osm_export_tool conda env."""
-        try:
-            conda_base = subprocess.check_output(["conda", "info", "--base"]).decode().strip()
-            python_path = os.path.join(conda_base, "envs", "osm_export_tool", "bin", "python")
-            
-            if not os.path.exists(python_path):
-                raise FileNotFoundError(f"Conda environment python not found at {python_path}")
-            
-            return python_path
-        except Exception as e:
-            self.log.error(f"Failed to locate conda environment: {e}")
-            return None
-
     def run(self):
-        """Executes the osm-export-tool via subprocess."""
+        """Executes command line tools like osm-export-tool via subprocess"""
 
         # Resolve variables from shared_metadata
         # Assuming node.input is the URN of the concatenate/unzip task
-        mapping_path = self.get_output_variable(self.node.input)
+        mapping_path = self.get_variable(self.node.input)
         if not mapping_path:
             self.log.error(f"Could not resolve input mapping for node {self.node.urn}")
             return False
@@ -45,7 +31,7 @@ class OpenSiteRunner(ProcessBase):
         output_base_file_tmp = output_base_file + '-tmp'
         output_base_file_final = output_base_file + '.gpkg'
         output_base_file_temp_final = output_base_file_tmp + '.gpkg'
-        self.set_output_variable(output_base_file_final)
+        self.set_output_variable(output_base_file_final, self.node.global_urn)
 
         if os.path.exists(output_base_file_final):
             self.log.info(f"{os.path.basename(output_base_file_final)} already exists, skipping osm-export-tool")
@@ -62,13 +48,13 @@ class OpenSiteRunner(ProcessBase):
 
         # Build the command list
         cmd = [
-            "bash", script_path,
-            mapping_file,
+            "osm-export-tool",
+            "-m", mapping_file,
             osm_file,
             output_base_file_tmp
         ]
 
-        self.log.info(f"Executing osm-export-tool-run.sh script for {mapping_file}")
+        self.log.info(f"Executing osm-export-tool (note: long duration) - {mapping_file}")
 
         try:
             result = subprocess.run(
@@ -80,8 +66,8 @@ class OpenSiteRunner(ProcessBase):
 
             os.replace(output_base_file_temp_final, output_base_file_final)
 
-            self.logger.info("Export successful")
+            self.log.info(f"osm-export-tool successful. Created file at {os.path.basename(output_base_file_final)}")
             return True
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Shell execution failed: {e.stderr}")
+            self.log.error(f"Shell execution failed: {e.stderr}")
             return False

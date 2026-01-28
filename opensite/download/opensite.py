@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from opensite.constants import OpenSiteConstants
 from opensite.model.node import Node
 from opensite.download.base import DownloadBase
@@ -46,11 +47,11 @@ class OpenSiteDownloader(DownloadBase):
             self.log.info(f"Routing {node.name} to {current_format} handler.")
             handler = handler_class(self.log_level, self.shared_lock)
             return handler.get(node.input, target_file, subfolder, force)
-        
+
         # Fallback for anything else
         self.log.warning(f"Format '{current_format}' not explicitly handled. Falling back to default.")
-        return self._handle_string_download(node.input, target_file, subfolder, force)
-    
+        return self.get_url(node.input, target_file, subfolder, force)
+
     def get_remote_size(self, node) -> int:
         """
         Overrides base size check. Only attempts network request if 

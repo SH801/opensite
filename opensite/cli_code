@@ -127,24 +127,11 @@ def main_old():
                 print("""
 Command syntax:
 
-python3 openwindenergy.py
-- Uses default values for turbine height-to-tip and blade-radius values.
-
-python3 openwindenergy.py [HEIGHT TO TIP]
-- Where 'HEIGHT TO TIP' is height-to-tip in metres of target wind turbine. Uses default blade-radius.
-
-python3 openwindenergy.py [HEIGHT TO TIP] [BLADE RADIUS]
-- Where 'HEIGHT TO TIP' is height-to-tip in metres and 'BLADE RADIUS' is blade-radius in metres of target wind turbine.
-
 Possible additional arguments:
 
---custom               Supply custom YML configuration file. Can be local file path, internet url or name on CKAN open data portal (https://data.openwind.energy).
 --clip                 Supply custom area for clipping. Uses OSM name from osm-boundaries.gpkg. Overrides any 'clipping' setting in custom YML.
---purgeall             Clear all downloads and database tables as if starting fresh.
---purgedb              Clear all PostGIS tables and reexport final layer files.
 --purgederived         Clear all derived (ie. non-core data) PostGIS tables and reexport final layer files.
 --purgeamalgamated     Clear all amalgamated PostGIS tables and reexport final layer files.
---skipdownload         Skip download stage and just do PostGIS processing.
 --skipfonts            Skip font installation stage and use hosted version of openmaptiles fonts.
 --regenerate dataset   Regenerate specific dataset by redownloading and recreating all tables relating to dataset.
 --buildtileserver      Rebuild files for tileserver.

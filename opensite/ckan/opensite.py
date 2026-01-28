@@ -1,6 +1,8 @@
+import hashlib
 import os
 import json
 import logging
+from pathlib import Path
 from opensite.constants import OpenSiteConstants
 from opensite.ckan.base import CKANBase
 from opensite.logging.opensite import OpenSiteLogger
@@ -34,29 +36,24 @@ class OpenSiteCKAN(CKANBase):
 
         for group_name, data in results.items():
             for dataset in data.get('datasets', []):
-                # The 'package_name' is our "crucial bit" (the slug)
                 pkg_slug = dataset.get('package_name')
-
-                # Check every matching resource in this dataset
                 for res in dataset.get('resources', []):
                     url = res.get('url')
                     basename = os.path.basename(url)
-                    # Get 'solar' from 'solar.yml'
                     file_slug = os.path.splitext(basename)[0]
-
-                    # Match if the requested site is the package name OR the filename
                     if pkg_slug in sites or file_slug in sites:
                         self.log.info(f"Match found: '{pkg_slug}' ({basename})")
-                        
-                        # Use group_name for folder organization
                         path = downloader.get(url, subfolder=group_name, force=True)
-                        
-                        if path:
-                            local_paths.append(str(path))
+                        if path: local_paths.append(str(path))
 
-        # sites may be a list of local YMLs
+        # Sites may be list of local/remote YMLs
         for site in sites:
-            if ('.yml' in site) and os.path.exists(site):
+            if site.endswith('.yml') and os.path.exists(site):
                 local_paths.append(site)
+            if site.startswith('http://') or site.startswith('https://'):
+                tmp_path = downloader.get(site, subfolder=OpenSiteConstants.CACHE_FOLDER, force=True)
+                permanent_path = Path(OpenSiteConstants.CACHE_FOLDER) / (hashlib.md5(site.encode('utf-8')).hexdigest() + '.yml')
+                os.replace(tmp_path, permanent_path)
+                local_paths.append(permanent_path)
                 
         return local_paths

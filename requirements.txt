@@ -1,0 +1,16 @@
+ckanapi
+xmltodict
+owslib
+pyvis
+psycopg2-binary
+osmium
+pyparsing
+pyyaml
+requests
+landez
+geopandas
+numpy
+rasterio
+setuptools
+gdal
+#pip install --no-deps git+https://github.com/hotosm/osm-export-tool-python.git

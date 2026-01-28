@@ -6,6 +6,7 @@ import logging
 import multiprocessing
 import time
 from typing import List
+from pathlib import Path
 from opensite.logging.opensite import OpenSiteLogger
 from opensite.model.node import Node
 from opensite.constants import OpenSiteConstants
@@ -13,6 +14,8 @@ from opensite.download.opensite import OpenSiteDownloader
 from opensite.processing.unzip import OpenSiteUnzipper
 from opensite.processing.concatenate import OpenSiteConcatenator
 from opensite.processing.run import OpenSiteRunner
+from opensite.processing.importer import OpenSiteImporter
+from opensite.processing.spatial import OpenSiteSpatial
 
 class OpenSiteQueue:
     def __init__(self, graph, max_workers=None, log_level=logging.DEBUG):
@@ -29,7 +32,7 @@ class OpenSiteQueue:
         
         self.graph.log.info(f"Processor ready. CPU Workers: {self.cpu_workers}, I/O Workers: {self.io_workers}")
 
-    def _fetch_sizes_parallel(self, nodes: List[Node]):
+    def _fetch_filesizes_parallel(self, nodes: List[Node]):
         """Helper to fetch remote sizes for a list of nodes in parallel."""
         # Only check nodes that are downloads and don't have a cached size
         nodes_to_check = [
@@ -56,59 +59,53 @@ class OpenSiteQueue:
         # Now the code only reaches this line once all threads are done
         self.logger.info("All file sizes fetched.")
 
-    def get_runnable_nodes(self, actions=[], checkfilesizes=True) -> List[Node]:
+    def _fetch_db_sizes(self, nodes: List[Node]):
+        """Fetch database table sizes for all preprocess nodes in one batch query."""
+        
+        # Filter nodes that need a DB size check
+        nodes_to_check = [
+            n for n in nodes 
+            if n.action == 'preprocess' and not hasattr(n, '_db_table_size')
+        ]
+        
+        if not nodes_to_check:
+            return
+
+        # Extract the table names we need to look for
+        table_names = [n.table_name for n in nodes_to_check if hasattr(n, 'table_name')]
+        
+        if not table_names:
+            return
+
+        self.logger.info(f"Fetching database sizes for {len(table_names)} tables...")
+
+        # Single query to get sizes for all tables in the list
+        query = """
+            SELECT relname, pg_total_relation_size(c.oid) 
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' 
+            AND relname = ANY(%s);
         """
-        Finds nodes ready for execution. 
-        Ensures only one node per global_urn is added to the batch.
-        """
-        runnable = []
-        seen_global_urns = set()
-        
-        # Get all node dictionaries from the graph
-        node_dicts = self.graph.find_nodes_by_props({})
-        
-        for d in node_dicts:
-            node = self.graph.find_node_by_urn(d['urn'])
-            g_urn = node.global_urn
 
-            # Skip if terminal or if we've already queued this global resource in this batch
-            if node.status in self.terminal_status or g_urn in seen_global_urns:
-                continue
-
-            if len(actions) != 0:
-                if node.action not in actions: continue
-
-            # Check dependencies (children)
-            children = getattr(node, 'children', [])
-            if all(child.status == 'processed' for child in children):
-                runnable.append(node)
-                if g_urn:
-                    seen_global_urns.add(g_urn)
-        
-
-        # Define the sort key (which now uses the cached values)
-        def get_priority_weight(node: Node):
-            is_download = (node.action == 'download')
-            action_weight = 0 if is_download else 1
-            
-            try:
-                format_weight = OpenSiteConstants.DOWNLOADS_PRIORITY.index(node.format)
-            except (ValueError, AttributeError):
-                format_weight = len(OpenSiteConstants.DOWNLOADS_PRIORITY) + 1
+        conn = self.postgis.pool.getconn()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (table_names,))
+                # Create a lookup dictionary: { 'table_name': size_in_bytes }
+                size_map = {row[0]: row[1] for row in cursor.fetchall()}
                 
-            # No network hit here! Just reading the cached _remote_size
-            size_val = getattr(node, '_remote_size', 0)
-            size_weight = -size_val if size_val and size_val > 0 else 0
+                # Assign sizes back to nodes
+                for node in nodes_to_check:
+                    node._db_table_size = size_map.get(node.table_name, 0)
+                    if node._db_table_size > 0:
+                        self.logger.info(f"Table {node.table_name} size: {node._db_table_size} bytes")
+                    
+        finally:
+            self.postgis.pool.putconn(conn)
 
-            return (action_weight, format_weight, size_weight)
-
-        # Order by file size using pre-fetch request (may not always work)
-        if checkfilesizes:
-            self._fetch_sizes_parallel(runnable)
-            runnable.sort(key=get_priority_weight)
-
-        return runnable
-
+        self.logger.info("All database table sizes fetched.")
+        
     def sync_global_status(self, node_urn: str, status: str):
         """
         Updates the target node and all its global 'clones' 
@@ -136,19 +133,56 @@ class OpenSiteQueue:
         Static wrapper for ProcessPoolExecutor. 
         Handles Amalgamate, Import, Buffer, and Run.
         """
-        urn, name, title, node_type, format, input, action, output, custom_properties, log_level, shared_lock, shared_metadata = args
+        urn, \
+        global_urn, \
+        name, \
+        title, \
+        node_type, \
+        format, \
+        input, \
+        action, \
+        output, \
+        custom_properties, \
+        log_level, \
+        shared_lock, \
+        shared_metadata = args
          
-        logger = OpenSiteLogger("process_cpu_task", log_level, shared_lock)
+        logger = OpenSiteLogger("OpenSiteQueue", log_level, shared_lock)
 
         logger.info(f"[CPU:{action}] {name}")
 
-        node = Node(urn=urn, name=name, title=title, node_type=node_type, format=format, input=input, action=action, output=output, custom_properties=custom_properties)
+        node = Node(    urn=urn, \
+                        global_urn=global_urn, \
+                        name=name, \
+                        title=title, \
+                        node_type=node_type, \
+                        format=format, \
+                        input=input, \
+                        action=action, \
+                        output=output, \
+                        custom_properties=custom_properties)
 
         try:
 
             if action == 'run':
                 runner = OpenSiteRunner(node, log_level, shared_lock, shared_metadata)
                 success = runner.run()
+
+            if action == 'import':
+                importer = OpenSiteImporter(node, log_level, shared_lock, shared_metadata)
+                success = importer.run()
+
+            if action == 'buffer':
+                spatializer = OpenSiteSpatial(node, log_level, shared_lock, shared_metadata)
+                success = spatializer.buffer()
+
+            if action == 'preprocess':
+                spatializer = OpenSiteSpatial(node, log_level, shared_lock, shared_metadata)
+                success = spatializer.preprocess()
+
+            if action == 'amalgamate':
+                spatializer = OpenSiteSpatial(node, log_level, shared_lock, shared_metadata)
+                success = spatializer.amalgamate()
 
             if success: return urn, 'processed'
             else: return urn, 'failed'
@@ -203,6 +237,9 @@ class OpenSiteQueue:
         shared_lock = manager.Lock()
         shared_metadata = manager.dict()
 
+        # Track number of unfinished nodes on every run
+        number_unfinished = None
+
         # Keep executors open for the duration of the run to allow pipelining
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.io_workers) as io_exec, \
              concurrent.futures.ProcessPoolExecutor(max_workers=self.cpu_workers) as cpu_exec:
@@ -211,7 +248,7 @@ class OpenSiteQueue:
                 # print(json.dumps(dict(shared_metadata), indent=4))
 
                 # 1. Get nodes that are ready to run (Dependencies met)
-                ready_nodes = self.get_runnable_nodes(actions=['download', 'unzip', 'concatenate', 'run'], checkfilesizes=False)
+                ready_nodes = self.get_runnable_nodes(actions=['download', 'unzip', 'concatenate', 'run', 'import', 'preprocess', 'buffer'], checksizes=True)
                 
                 # Filter out nodes that are already currently in flight
                 new_nodes = [n for n in ready_nodes if n.urn not in active_tasks.values()]
@@ -227,6 +264,7 @@ class OpenSiteQueue:
                         # Prepare the task args for the Process pool
                         task_args = (
                             node.urn, 
+                            node.global_urn,
                             node.name, 
                             node.title,
                             node.node_type,
@@ -243,19 +281,18 @@ class OpenSiteQueue:
                         active_tasks[future] = node.urn
                         self.graph.log.debug(f"Submitted CPU task: {node.name}")
 
-                # 3. If no tasks are running and nothing is ready, check for completion or stalls
+                # If no tasks are running and nothing is ready, check for completion or stalls
                 if not active_tasks:
-                    unfinished = [n for n in self.graph.find_nodes_by_props({}) 
+                    unfinished = [n for n in self.graph.find_nodes_by_props() 
                                  if n.get('status') not in ['completed', 'failed', 'skipped']]
                     
                     if not unfinished:
                         self.graph.log.info("Processing complete.")
                     else:
-                        # If we have unfinished nodes but nothing is 'ready', we are stalled
-                        self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unreachable/blocked.")
-                    break
+                        self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unfinished")
+                        break
 
-                # 4. Wait for AT LEAST ONE task to complete
+                # Wait for at least one task to complete
                 # This is the "Pipelining Engine" - it yields as soon as any task finishes
                 done, _ = concurrent.futures.wait(
                     active_tasks.keys(), 
@@ -263,7 +300,7 @@ class OpenSiteQueue:
                     return_when=concurrent.futures.FIRST_COMPLETED
                 )
 
-                # 5. Process completed tasks and update the graph
+                # Process completed tasks and update the graph
                 for future in done:
                     urn = active_tasks.pop(future)
                     try:
@@ -283,3 +320,95 @@ class OpenSiteQueue:
 
                 # Tiny sleep to prevent high CPU usage on the main thread
                 time.sleep(0.05)
+
+    def get_runnable_nodes(self, actions=[], checksizes=True) -> List[Node]:
+        """
+        Finds nodes ready for execution. 
+        Ensures only one node per global_urn is added to the batch.
+        """
+        runnable = []
+        seen_global_urns = set()
+        
+        # Get all node dictionaries from the graph
+        node_dicts = self.graph.find_nodes_by_props({})
+
+        for d in node_dicts:
+            node = self.graph.find_node_by_urn(d['urn'])
+            g_urn = node.global_urn
+
+            # Skip if already finished or already in this batch
+            if node.status in self.terminal_status or g_urn in seen_global_urns:
+                continue
+
+            # Filter by action if specified
+            if actions and node.action not in actions:
+                continue
+
+            if g_urn is None:
+                children = getattr(node, 'children', [])
+                if all(child.status == 'processed' for child in children):
+                    runnable.append(node)
+                continue
+
+            # Find all nodes in the graph that share this same global_urn
+            clones = [
+                self.graph.find_node_by_urn(n['urn']) 
+                for n in self.graph.find_nodes_by_props({'global_urn': g_urn})
+            ]
+
+            # A node is only runnable if EVERY child of EVERY clone is 'processed'
+            all_clones_ready = True
+            for clone in clones:
+                children = getattr(clone, 'children', [])
+                if not all(child.status == 'processed' for child in children):
+                    all_clones_ready = False
+                    break
+            
+            if all_clones_ready:
+                runnable.append(node)
+                if g_urn:
+                    seen_global_urns.add(g_urn)
+
+        # Define the sort key (which now uses the cached values)
+        def get_priority_weight(node: Node):
+            is_download = (node.action == 'download')
+            is_import = (node.action == 'import')
+            is_db_size_dependent = (node.action in ['preprocess', 'buffer'])
+
+            action_weight = 0 if is_download else 1
+            
+            try:
+                format_weight = OpenSiteConstants.DOWNLOADS_PRIORITY.index(node.format)
+            except (ValueError, AttributeError):
+                format_weight = len(OpenSiteConstants.DOWNLOADS_PRIORITY) + 1
+                
+            # Determine which size to use
+            size_val = 0
+            if is_download:
+                # Use the cached remote file size
+                size_val = getattr(node, '_remote_size', 0)
+            elif is_import:
+                if node.format == OpenSiteConstants.OSM_YML_FORMAT:
+                    # If OSM import, difficult to know exact size of 
+                    # dataset until imported - so use size of parent OSM file
+                    file_path = Path(OpenSiteConstants.OSM_FOLDER) / os.path.basename(node.custom_properties['osm'])
+                else:
+                    file_path = Path(OpenSiteConstants.DOWNLOAD_FOLDER) / node.input
+                if file_path.exists():
+                    size_val = file_path.stat().st_size
+            elif is_db_size_dependent:
+                # Use the database table size
+                # Assuming you've stored the result of pg_total_relation_size on the node
+                size_val = getattr(node, '_db_table_size', 0)
+
+            size_weight = -size_val if size_val and size_val > 0 else 0
+
+            return (action_weight, format_weight, size_weight)
+
+        # Order by size (filesize or database size) using pre-fetch request (may not always work)
+        if checksizes:
+            self._fetch_filesizes_parallel(runnable)
+            self._fetch_db_sizes(runnable)
+            runnable.sort(key=get_priority_weight)
+
+        return runnable

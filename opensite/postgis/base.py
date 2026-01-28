@@ -1,7 +1,8 @@
 import os
 import logging
 import psycopg2
-from psycopg2 import pool
+from psycopg2 import pool, sql, Error
+from psycopg2.extensions import quote_ident
 from psycopg2.extras import RealDictCursor
 from opensite.logging.base import LoggingBase
 
@@ -12,7 +13,7 @@ class PostGISBase:
         self.host = os.getenv("POSTGRES_HOST", "localhost")
         self.database = os.getenv("POSTGRES_DB", "opensite")
         self.user = os.getenv("POSTGRES_USER", "opensite")
-        self.password = os.getenv("POSTGRES_PASSWORD", "#######")
+        self.password = os.getenv("POSTGRES_PASSWORD", "")
         
         # Initialize a connection pool for efficiency
         try:
@@ -26,6 +27,45 @@ class PostGISBase:
             self.log.debug(f"Connected to database: {self.database}")
         except Exception as e:
             self.log.error(f"Error connecting to Postgres: {e}")
+
+    def drop_table(self, table_name, schema='public', cascade=True):
+        """
+        Drops a table from the database safely.
+        
+        Args:
+            table_name (str): The name of the table to drop.
+            schema (str): The schema where the table resides.
+            cascade (bool): If True, automatically drops objects that depend 
+                            on the table (like indexes, views, and sequences).
+        """
+        # Use sql.Identifier to safely handle table names and schemas
+        # This prevents SQL injection and handles case-sensitivity
+        drop_stmt = "DROP TABLE IF EXISTS {schema}.{table}"
+        if cascade:
+            drop_stmt += " CASCADE"
+
+        query = sql.SQL(drop_stmt).format(
+            schema=sql.Identifier(schema),
+            table=sql.Identifier(table_name)
+        )
+
+        conn = self.pool.getconn()
+        try:
+            # Reset transaction state in case of previous errors in the pool
+            conn.rollback() 
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                conn.commit()
+                if hasattr(self, 'log'):
+                    self.log.info(f"Successfully dropped table: {schema}.{table_name}")
+                return True
+        except Error as e:
+            conn.rollback()
+            if hasattr(self, 'log'):
+                self.log.error(f"Failed to drop table {table_name}: {e}")
+            return False
+        finally:
+            self.pool.putconn(conn)
 
     def execute_query(self, query, params=None):
         """Standard wrapper to execute a command and commit it."""
@@ -62,3 +102,66 @@ class PostGISBase:
         results = self.fetch_all(sql, (schema,))
         
         return {row['table_name'] for row in results}
+    
+    def table_exists(self, table_name, schema='public'):
+        """
+        Checks if specific table exists in the PostGIS database.
+        
+        Uses pg_class to correctly handle tables with leading underscores
+        or case-sensitive names that were created using sql.Identifier
+        """
+        # We query the system catalog. 
+        # relkind = 'r' ensures we are looking for a standard Table.
+        query = sql.SQL("""
+        SELECT EXISTS (
+            SELECT 1 
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = {schema_lit}
+              AND c.relname = {table_lit}
+              AND c.relkind = 'r'
+        );
+        """).format(schema_lit = sql.Literal(schema), table_lit  = sql.Literal(table_name))
+
+        conn = self.pool.getconn()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                result = cursor.fetchone()
+                if result is not None:
+                    if isinstance(result, (tuple, list)):
+                        return bool(result[0])
+                    return bool(result)
+                return False
+        except Error as e:
+            self.log.error(f"Database error checking table existence for {table_name}: {e}")
+            return False
+        finally:
+            self.pool.putconn(conn)
+
+    def get_ogr_connection_string(self):
+        """
+        Returns the connection string formatted specifically for GDAL/OGR tools.
+        Wraps values in single quotes to handle special characters safely.
+        """
+        return f"PG:host='{self.host}' dbname='{self.database}' user='{self.user}' password='{self.password}'"
+    
+    def add_table_comment(self, table_id, comment):
+        """
+        Adds a comment to a specific table using the existing execute_query logic.
+        """
+        # quote_ident handles the table name: _opensite_table -> "_opensite_table"
+        # The %s in the query handles the comment string properly.
+        conn = self.pool.getconn()
+        try:
+            safe_table = quote_ident(table_id, conn)
+            sql = f"COMMENT ON TABLE {safe_table} IS %s"
+            
+            self.execute_query(sql, (comment,))
+            self.log.debug(f"Comment added to {table_id}")
+            return True
+        except Exception as e:
+            self.log.error(f"Failed to add comment to {table_id}: {e}")
+            return False
+        finally:
+            self.pool.putconn(conn)

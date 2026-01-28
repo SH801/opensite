@@ -1,40 +1,80 @@
 import json
 import logging
+import os
+import subprocess
+from psycopg2 import Error
+from opensite.constants import OpenSiteConstants
 from opensite.postgis.base import PostGISBase
 from opensite.logging.opensite import OpenSiteLogger
 
 class OpenSitePostGIS(PostGISBase):
+
+    OPENSITE_REGISTRY       = OpenSiteConstants.OPENSITE_REGISTRY
+    OPENSITE_BRANCH         = OpenSiteConstants.OPENSITE_BRANCH
+    OPENSITE_CLIPPINGMASTER = OpenSiteConstants.OPENSITE_CLIPPINGMASTER
+    OPENSITE_PROCESSINGGRID = OpenSiteConstants.OPENSITE_PROCESSINGGRID
+
     def __init__(self, log_level=logging.INFO):
         super().__init__(log_level)
         self.log = OpenSiteLogger("OpenSitePostGIS", log_level)
         self._ensure_registry_exists()
 
+    def purge_database(self):
+        """Drops all tables with the opensite prefix (both internal and data tables)."""
+        # Matches _opensite_branch, _opensite_registry, and opensite_hash...
+        sql_find = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND (table_name LIKE 'opensite_%' OR table_name LIKE '_opensite_%')
+            AND table_type = 'BASE TABLE';
+        """
+        
+        tables_to_drop = self.fetch_all(sql_find)
+        
+        if not tables_to_drop:
+            self.log.info("No OpenSite tables found to purge.")
+            return
+
+        self.log.warning(f"Purging {len(tables_to_drop)} tables from the database...")
+        
+        for row in tables_to_drop:
+            table = row['table_name']
+            try:
+                # CASCADE handles foreign keys or views that might depend on these tables
+                self.execute_query(f"DROP TABLE IF EXISTS {table} CASCADE;")
+                self.log.debug(f"Dropped: {table}")
+            except Exception as e:
+                self.log.error(f"Failed to drop {table}: {e}")
+        
+        self.log.info("Database purge complete.")
+
     def _ensure_registry_exists(self):
         """Creates the master lookup table if it doesn't exist."""
 
-        self.log.debug("Creating opensite_branch table")
+        self.log.debug(f"Creating {self.OPENSITE_BRANCH} table")
 
         # Audit table for branch configuration state
-        self.execute_query("""
-        CREATE TABLE IF NOT EXISTS opensite_branch (
+        self.execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {self.OPENSITE_BRANCH} (
             yml_hash TEXT PRIMARY KEY,
             branch_name TEXT NOT NULL,
             config_json JSONB NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
 
-        self.log.debug("Creating opensite_registry table")
+        self.log.debug(f"Creating {self.OPENSITE_REGISTRY} table")
 
         # Human-readable lookup for every node
-        self.execute_query("""
-        CREATE TABLE IF NOT EXISTS opensite_registry (
+        self.execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {self.OPENSITE_REGISTRY} (
             completed BOOLEAN DEFAULT FALSE,
             table_id TEXT PRIMARY KEY,
             human_name TEXT NOT NULL,
             branch_name TEXT NOT NULL,
             yml_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
 
@@ -45,13 +85,20 @@ class OpenSitePostGIS(PostGISBase):
         self.log.info("Starting registry synchronization...")
         
         # 1. Get current registry state
-        registry_entries = self.fetch_all("SELECT table_id, completed FROM opensite_registry")
+        registry_entries = self.fetch_all(f"SELECT table_id, completed FROM {self.OPENSITE_REGISTRY}")
         registry_names = {row['table_id'] for row in registry_entries}
         
         # 2. Get physical tables
         protected_tables = {
-            'opensite_registry', 'opensite_branch', 'spatial_ref_sys', 
-            'geography_columns', 'geometry_columns', 'raster_columns', 'raster_overview'
+            self.OPENSITE_REGISTRY, 
+            self.OPENSITE_BRANCH, 
+            self.OPENSITE_CLIPPINGMASTER,
+            self.OPENSITE_PROCESSINGGRID,
+            'spatial_ref_sys', 
+            'geography_columns', 
+            'geometry_columns', 
+            'raster_columns', 
+            'raster_overview'
         }
         physical_tables = {t for t in self.get_table_names() if t not in protected_tables}
 
@@ -62,30 +109,30 @@ class OpenSitePostGIS(PostGISBase):
 
             if not completed:
                 self.log.debug(f"Removing incomplete registry entry: {table_id}")
-                self.execute_query("DELETE FROM opensite_registry WHERE table_id = %s", (table_id,))
+                self.execute_query(f"DELETE FROM {self.OPENSITE_REGISTRY} WHERE table_id = %s", (table_id,))
                 registry_names.discard(table_id)
                 continue
 
             if table_id not in physical_tables:
                 self.log.debug(f"Removing orphaned registry entry (no table found): {table_id}")
-                self.execute_query("DELETE FROM opensite_registry WHERE table_id = %s", (table_id,))
+                self.execute_query(f"DELETE FROM {self.OPENSITE_REGISTRY} WHERE table_id = %s", (table_id,))
                 registry_names.discard(table_id)
 
         # --- Step C: Clean the Database (Untracked Tables) ---
         for table_id in physical_tables:
-            if table_id not in registry_names:
+            if table_id not in registry_names :
                 self.log.warning(f"Dropping untracked table: {table_id}")
                 self.execute_query(f'DROP TABLE IF EXISTS "{table_id}" CASCADE')
 
         # --- Step D: Clean the Branches ---
-        # We look for branch_name in opensite_branch that no longer has 
-        # ANY associated records in opensite_registry
+        # We look for branch_name in {self.OPENSITE_BRANCH} that no longer has 
+        # ANY associated records in {self.OPENSITE_REGISTRY}
         self.log.info("Checking for orphaned branches...")
         
-        orphaned_branches_sql = """
+        orphaned_branches_sql = f"""
             SELECT b.branch_name 
-            FROM opensite_branch b
-            LEFT JOIN opensite_registry r ON b.branch_name = r.branch_name
+            FROM {self.OPENSITE_BRANCH} b
+            LEFT JOIN {self.OPENSITE_REGISTRY} r ON b.branch_name = r.branch_name
             WHERE r.branch_name IS NULL
         """
         orphaned_branches = self.fetch_all(orphaned_branches_sql)
@@ -93,17 +140,17 @@ class OpenSitePostGIS(PostGISBase):
         for branch in orphaned_branches:
             b_name = branch['branch_name']
             self.log.warning(f"Removing orphaned branch metadata: {b_name}")
-            self.execute_query("DELETE FROM opensite_branch WHERE branch_name = %s", (b_name,))
+            self.execute_query(f"DELETE FROM {self.OPENSITE_BRANCH} WHERE branch_name = %s", (b_name,))
 
         self.log.info("Registry and branch synchronization complete.")
 
     def register_branch(self, branch_name, yml_hash, config_dict):
         """Stores the full configuration JSON for a specific hash."""
 
-        self.log.debug(f"Registering branch in opensite_branch {yml_hash} {branch_name}")
+        self.log.debug(f"Registering branch in {self.OPENSITE_BRANCH} {yml_hash} {branch_name}")
 
-        query = """
-            INSERT INTO opensite_branch (yml_hash, branch_name, config_json)
+        query = f"""
+            INSERT INTO {self.OPENSITE_BRANCH} (yml_hash, branch_name, config_json)
             VALUES (%s, %s, %s)
             ON CONFLICT (yml_hash) DO UPDATE SET
                 config_json = EXCLUDED.config_json;
@@ -123,11 +170,77 @@ class OpenSitePostGIS(PostGISBase):
         if output:
             self.log.debug(f"Registering node in opensite_registery {output} {human_name} {branch_name}")
 
-            query = """
-            INSERT INTO opensite_registry (table_id, human_name, branch_name, yml_hash)
+            query = f"""
+            INSERT INTO {self.OPENSITE_REGISTRY} (table_id, human_name, branch_name, yml_hash)
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (table_id) DO UPDATE SET
                 human_name = EXCLUDED.human_name,
                 branch_name = EXCLUDED.branch_name;
             """
             self.execute_query(query, (output, human_name, branch_name, yml_hash))
+
+    def set_table_completed(self, table_id):
+        """
+        Updates an existing node's status. 
+        Returns True if a row was updated, False if the URN was missing.
+        """
+        sql = f"""
+            UPDATE {self.OPENSITE_REGISTRY} 
+            SET completed = true, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE table_id = %s;
+        """
+        conn = self.pool.getconn()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, (table_id, ))
+                updated_rows = cursor.rowcount
+                conn.commit()
+                return updated_rows > 0
+            
+        except (Exception, Error) as e:
+            # This will catch syntax errors, connection issues, or constraint violations
+            self.log.error(f"Failed to update registry for {table_id}: {e}")
+            if conn:
+                conn.rollback() # Important: roll back the failed transaction
+            return False
+
+        finally:
+            self.pool.putconn(conn)
+
+    def import_spatial_data(self, spatial_data_file, spatial_data_table):
+        """
+        Generic import function for standardised input spatial data files
+        To save time, we assume:
+        - CRS of source file is OpenSiteConstants.CRS_DEFAULT
+        - Geometry type doesn't need changing
+        - There are absolutely no errors
+        These assumptions do not hold for OpenSiteImporter in opensite.processing.importer.py
+        """
+
+        # Base ogr2ogr Command
+        cmd = [
+            "ogr2ogr",
+            "-f", "PostgreSQL",
+            self.get_ogr_connection_string(),
+            spatial_data_file,
+            "-overwrite",
+            "-lco", "GEOMETRY_NAME=geom",
+            "-nln", spatial_data_table,
+            "-nlt", "PROMOTE_TO_MULTI",
+            "--config", "PG_USE_COPY", "YES",
+            "--config", "OGR_PG_ENABLE_METADATA", "NO"
+        ]
+
+        self.log.info(f"Importing file {os.path.basename(spatial_data_file)} to table '{spatial_data_table}'")
+
+        try:
+            # Execute shell command
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+            self.log.info(f"{os.path.basename(spatial_data_file)} imported to table '{spatial_data_table}'")
+            return True
+        
+        except subprocess.CalledProcessError as e:
+            self.log.error(f"PostGIS Import Error: {os.path.basename(spatial_data_file)} {e.stderr}")
+            return False

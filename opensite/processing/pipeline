@@ -295,25 +295,6 @@ def runProcessingOnDownloads(output_folder):
 
     # Create processing grid
 
-    processing_grid = reformatTableName(PROCESSING_GRID_TABLE)
-
-    if not postgisCheckTableExists(processing_grid):
-
-        LogMessage("Creating grid overlay to reduce memory load during ST_Union")
-
-        postgisExec("CREATE TABLE %s AS SELECT ST_Transform((ST_SquareGrid(%s, ST_Transform(geom, 3857))).geom, 4326) geom FROM %s;",
-                    (AsIs(processing_grid), AsIs(PROCESSING_GRID_SPACING), AsIs(clipping_union_table), ))
-        postgisExec("ALTER TABLE %s ADD COLUMN id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY", (AsIs(processing_grid), ))
-        postgisExec("DELETE FROM %s WHERE id IN (SELECT grid.id FROM %s grid, %s clipping WHERE ST_Intersects(grid.geom, clipping.geom) IS FALSE);", \
-                    (AsIs(processing_grid), AsIs(processing_grid), AsIs(clipping_union_table), ))
-        postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(processing_grid + "_idx"), AsIs(processing_grid), ))
-
-    # Populate list of grid square ids
-
-    grid_square_ids = postgisGetResults("SELECT id FROM %s;", (AsIs(processing_grid), ))
-    grid_square_ids = [item[0] for item in grid_square_ids]
-    grid_square_count = len(grid_square_ids)
-
     # Import all GeoJSON into PostGIS
 
     LogMessage("Importing downloaded files into PostGIS...")

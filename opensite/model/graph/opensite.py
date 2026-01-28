@@ -76,9 +76,10 @@ class OpenSiteGraph(Graph):
             ],
             "cpu_bound": [
                 'run', 
-                'buffer', 
                 'import',
-                'amalgamate'
+                'preprocess',
+                'buffer', 
+                'amalgamate',
             ]
         }
 
@@ -191,9 +192,9 @@ class OpenSiteGraph(Graph):
 
         def add_to_vis(node):
             if node.status == 'processed':
-                color = "#0f9447"
+                color = "#0b7a39"
             elif node.status == 'unprocessed':
-                color = "#c71f0d"
+                color = "#ea5848"
             else:
                 color = "#848484"
 
@@ -536,8 +537,9 @@ class OpenSiteGraph(Graph):
         # Generate buffer nodes
         self.add_buffers()
 
-        # # # Generate post-import processing nodes
-        # # self.add_postimport()
+        # Generate preprocessed nodes
+        # Typically during preprocessing, we slice data up into grid squares then dump and select single geometry type 
+        self.add_preprocess()
 
         # Update database registry with new nodes
         self.register_to_database()
@@ -832,10 +834,11 @@ class OpenSiteGraph(Graph):
                 runner_parent = self.find_parent(run_node.urn)
                 if runner_parent:
                     runner_parent.action = 'import'
-                    runner_parent.input = None 
+                    runner_parent.input = run_output
                     if not hasattr(runner_parent, 'custom_properties') or runner_parent.custom_properties is None:
                         runner_parent.custom_properties = {}
                     runner_parent.custom_properties['osm'] = osm_url
+                    runner_parent.custom_properties['yml'] = node.output
 
         self.log.debug("OSM Tree complete: Runner is now parent to both Downloader and Concatenator.")
 
@@ -890,3 +893,37 @@ class OpenSiteGraph(Graph):
                 node.custom_properties.pop('buffer', None)
 
         self.log.debug(f"Successfully wrapped {len(target_nodes)} nodes with buffer processes.")
+
+    def add_preprocess(self):
+        """
+        Injects 'preprocess' node as parent to imports or buffers
+        Preprocess nodes take newly imported data, dump it out to destroy multipolygons 
+        (and create single clean geometry layer) and splits data into grid squares to maximize parallelism
+        """
+
+        import_dicts = self.find_nodes_by_props({"action": "import"})
+        
+        for d in import_dicts:
+            import_node = self.find_node_by_urn(d['urn'])
+            if not import_node: continue
+
+            # Identify target to "wrap" - check immediate parent to see if buffer has already 'claimed' import
+            parent = self.find_parent(import_node.urn)
+            
+            if parent and getattr(parent, 'action', None) == 'buffer': target_node = parent
+            else: target_node = import_node
+
+            preprocess_node = Node(
+                urn=self.get_new_urn(),
+                name=f"{target_node.name}--preprocess",
+                title=f"{target_node.title} - Preprocess",
+                input=target_node.output,
+                action='preprocess',
+                status='unprocessed'
+            )
+
+            preprocess_node.output=self.get_output(preprocess_node)
+
+            self.insert_parent(target_node, preprocess_node)
+
+        self.log.info("Preprocess nodes injected with status 'unprocessed'.")

@@ -8,6 +8,13 @@ class OpenSiteConstants:
     # Default logging level for entire application
     LOGGING_LEVEL           = logging.DEBUG
 
+    # Default CRS for spatial operations
+    # Use EPSG:25830 for maximum precision across United Kingdom
+    CRS_DEFAULT             = 'EPSG:25830'
+
+    # GeoJSON default CRS
+    CRS_GEOJSON             = 'EPSG:4326'
+
     # Format text used by CKAN to indicate osm-export-tool YML file
     OSM_YML_FORMAT          = "osm-export-tool YML"
 
@@ -80,6 +87,7 @@ class OpenSiteConstants:
     CACHE_FOLDER            = BUILD_ROOT / "cache"
     LOG_FOLDER              = BUILD_ROOT / "logs"
     OSM_FOLDER              = DOWNLOAD_FOLDER / "osm"
+    OUTPUT_FOLDER           = BUILD_ROOT / "output"
 
     ALL_FOLDERS             = \
                             [
@@ -105,3 +113,19 @@ class OpenSiteConstants:
                                                     'ckan'
                                                 ]
                             }
+
+    # Location of clipping master file
+    CLIPPING_MASTER         = 'clipping-master-' + CRS_DEFAULT.replace(':', '-') + '.gpkg'
+
+    # Processing grid is used to cut up core datasets into grid squares
+    # to reduce memory load on ST_Union. All final layers will have ST_Union
+    # so it's okay to cut up early datasets before this
+    PROCESSINGGRID_SPACING  = 100 * 1000 # Size of grid squares in metres, ie. 500km
+
+    # Database tables
+    DATABASE_BASE           = '_opensite_'
+    OPENSITE_REGISTRY       = DATABASE_BASE + 'registry'
+    OPENSITE_BRANCH         = DATABASE_BASE + 'branch'
+    OPENSITE_CLIPPINGMASTER = DATABASE_BASE + 'clipping_master'
+    OPENSITE_PROCESSINGGRID = DATABASE_BASE + 'processing_grid'
+

@@ -1,6 +1,7 @@
 import yaml
 import hashlib
 import logging
+import time
 from pathlib import Path
 from opensite.processing.base import ProcessBase
 from opensite.constants import OpenSiteConstants
@@ -19,7 +20,7 @@ class OpenSiteConcatenator(ProcessBase):
             # Collect inputs (paths relative to DOWNLOAD_FOLDER)
             download_path = Path(OpenSiteConstants.DOWNLOAD_FOLDER)
             input_paths = [(download_path / p).resolve() for p in self.node.input]
-            
+
             merged_data = {}
             for p in input_paths:
                 if p.exists():
@@ -28,11 +29,13 @@ class OpenSiteConcatenator(ProcessBase):
                         if data: 
                             merged_data.update(data)
                 else:
-                    self.log.warning(f"Source YAML not found: {p}")
+                    self.log.error(f"Source YAML not found: {p}")
+                    return False
             
             # Hash and Write
             yaml_content = yaml.dump(merged_data, default_flow_style=False)
-            content_hash = hashlib.sha256(yaml_content.encode('utf-8')).hexdigest()[:16]
+            osm_and_config = yaml_content + self.node.custom_properties['osm']
+            content_hash = hashlib.sha256(osm_and_config.encode('utf-8')).hexdigest()[:16]
             final_filename = f"osm_config_{content_hash}.yml"
             final_path = str(Path(self.base_path) / final_filename)
 

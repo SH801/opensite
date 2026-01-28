@@ -12,6 +12,8 @@ class OpenSiteCLI(BaseCLI):
         self.defaults = {}
         self.overrides = {}
         self.sites = []
+        self.purgedb = False
+        self.purgeall = False
         # Load and filter immediately
         self._load_and_filter_defaults()
         self._incoporate_cli_switched()
@@ -23,6 +25,8 @@ class OpenSiteCLI(BaseCLI):
         super().add_standard_args()
         self.parser.add_argument("sites", nargs="*", help="Site(s) to generate")
         self.parser.add_argument('--preview', action='store_true', help='Generate an interactive graph preview and skip database modifications')
+        self.parser.add_argument('--purgedb', action='store_true', help="Drop all opensite tables and exit")
+        self.parser.add_argument('--purgeall', action='store_true', help="Delete all download files, drop all opensite tables and exit")
 
     def _load_and_filter_defaults(self):
         """Loads the file and keeps only int, float, and str variables."""
@@ -85,6 +89,12 @@ class OpenSiteCLI(BaseCLI):
         self.add_standard_args()
         self.inject_dynamic_args()
         self.parse()
+
+        # Boolean for purgeall
+        self.purgeall = self.args.purgeall
+
+        # Boolean for purgedb
+        self.purgedb = self.args.purgedb
 
         # Boolean for preview
         self.preview = self.args.preview
