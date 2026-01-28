@@ -123,7 +123,8 @@ class OpenSiteConstants:
     PROCESSINGGRID_SPACING  = 100 * 1000 # Size of grid squares in metres, ie. 500km
 
     # Database tables
-    DATABASE_BASE           = '_opensite_'
+    DATABASE_GENERAL_PREFIX = 'opensite_'
+    DATABASE_BASE           = '_' + DATABASE_GENERAL_PREFIX
     OPENSITE_REGISTRY       = DATABASE_BASE + 'registry'
     OPENSITE_BRANCH         = DATABASE_BASE + 'branch'
     OPENSITE_CLIPPINGMASTER = DATABASE_BASE + 'clipping_master'

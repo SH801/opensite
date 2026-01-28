@@ -9,24 +9,25 @@ from opensite.logging.opensite import LoggingBase
 
 class Graph:
 
-    DEFAULT_YML = 'defaults.yml'
-    TREE_BRANCH_PROPERTIES = {}
-    OUTPUT_FIELDS = [
-        "urn", 
-        "global_urn",
-        "name", 
-        "title", 
-        "node_type", 
-        "format", 
-        "input", 
-        "action", 
-        "output", 
-        "style", 
-        "custom_properties", 
-        "status", 
-        "dependencies", 
-        "log"
-    ]
+    TABLENAME_PREFIX        = ''
+    DEFAULT_YML             = 'defaults.yml'
+    TREE_BRANCH_PROPERTIES  = {}
+    OUTPUT_FIELDS           = [
+                                "urn", 
+                                "global_urn",
+                                "name", 
+                                "title", 
+                                "node_type", 
+                                "format", 
+                                "input", 
+                                "action", 
+                                "output", 
+                                "style", 
+                                "custom_properties", 
+                                "status", 
+                                "dependencies", 
+                                "log"
+                            ]
 
     # OUTPUT_FIELDS = ['urn', 'global_urn', 'name', 'title', 'input', 'output']
     
@@ -529,6 +530,29 @@ class Graph:
                     child.parent = parent_node
                     parent_node.children.append(child)
 
+    def get_children_info(self, node) -> dict:
+        """
+        Generates an ordered list of child names and a unique hash representing 
+        the combined state of dependencies and additional metadata.
+        """
+        # Generate alphabetically ordered list of child node output fields
+        child_names = []
+        for urn in node.dependencies:
+            child_node = self.find_node_by_urn(urn) 
+            if child_node:
+                child_names.append(str(child_node.output))
+        
+        child_names.sort()
+
+        # Create a hash on json.dumps([list]) + node.name
+        combined_string = json.dumps(child_names) + str(node.name)
+        content_hash = hashlib.md5(combined_string.encode()).hexdigest()
+
+        return {
+            "children": child_names,
+            "output": f"{self.TABLENAME_PREFIX}{content_hash}"
+        }
+
     def get_output(self, node) -> str:
         """
         Generates a PostGIS-safe table name.
@@ -536,12 +560,11 @@ class Graph:
         Format: opensite_[short-node-hash]_[full-yml-hash]
         """
         # Generate shortened Name Hash (8 chars) from specific node name
-        # This ensures 'Turbine-1' and 'Turbine-2' get different tables
         node_name_clean = str(node.name).strip().lower()
         node_hash = hashlib.md5(node_name_clean.encode()).hexdigest()
 
-        # Prefixing with 'opensite' ensures it starts with a letter
-        table_name = f"opensite_{node_hash}"
+        # Prefixing with self.TABLENAME_PREFIX ensures it starts with a letter
+        table_name = f"{self.TABLENAME_PREFIX}{node_hash}"
 
         return table_name
 

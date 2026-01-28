@@ -15,7 +15,8 @@ from opensite.ckan.opensite import OpenSiteCKAN
 
 class OpenSiteGraph(Graph):
 
-    TREE_BRANCH_PROPERTIES = OpenSiteConstants.TREE_BRANCH_PROPERTIES
+    TABLENAME_PREFIX        = OpenSiteConstants.DATABASE_GENERAL_PREFIX
+    TREE_BRANCH_PROPERTIES  = OpenSiteConstants.TREE_BRANCH_PROPERTIES
 
     def __init__(self, overrides=None, log_level=logging.INFO):
         super().__init__(overrides)
@@ -32,7 +33,7 @@ class OpenSiteGraph(Graph):
         """
 
         if output:
-            if output.startswith(r"opensite_"): return True
+            if output.startswith(self.TABLENAME_PREFIX): return True
         return False
     
     def register_to_database(self):
@@ -196,14 +197,7 @@ class OpenSiteGraph(Graph):
             elif node.status == 'unprocessed':
                 color = "#ea5848"
             else:
-                color = "#848484"
-
-            # if hasattr(node, 'url') and node.url:
-            #     color = "#2ecc71" # Green
-            # elif hasattr(node, 'children') and len(node.children) > 0:
-            #     color = "#3498db" # Blue
-            # else:
-            #     color = "#e74c3c" # Red
+                color = "#FEE245"
 
             node_json = node.to_json()
             del node_json['children']

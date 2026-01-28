@@ -29,22 +29,22 @@ class ColorFormatter(logging.Formatter):
 
 class LoggingBase:
     def __init__(self, name: str, level=logging.DEBUG, lock: multiprocessing.Lock = None):
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(name.ljust(17))
         self.logger.setLevel(level)
         self.lock = lock
         self.logger.propagate = False
         
         if not self.logger.handlers:
-            # 1. Terminal Handler (WITH COLORS)
+            # Terminal handler - with colors
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setFormatter(ColorFormatter())
             self.logger.addHandler(console_handler)
             
-            # 2. File Handler (CLEAN TEXT - NO COLORS)
+            # File handler - clean text, no colors
             # This ensures opensite.log remains human-readable
             file_handler = logging.FileHandler('opensite.log')
             clean_formatter = logging.Formatter(
-                '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+                '%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
             file_handler.setFormatter(clean_formatter)

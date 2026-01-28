@@ -9,6 +9,7 @@ from opensite.constants import OpenSiteConstants
 from opensite.processing.base import ProcessBase
 from opensite.logging.opensite import OpenSiteLogger
 from opensite.postgis.opensite import OpenSitePostGIS
+from opensite.model.graph.opensite import OpenSiteGraph
 
 PROCESSINGGRID_SQUARE_IDS = None
 
@@ -119,7 +120,7 @@ class OpenSiteSpatial(ProcessBase):
     def buffer(self):
         """
         Adds buffer to spatial dataset 
-        Buffering is always added BEFORE dataset is split into grid squares
+        Buffering is always added before dataset is split into grid squares
         """
             
         if self.postgis.table_exists(self.node.output):
@@ -166,9 +167,15 @@ class OpenSiteSpatial(ProcessBase):
             self.postgis.execute_query(query_buffer_create_index)
             self.postgis.add_table_comment(self.node.output, self.node.name)
 
-            self.log.info(f"[{self.node.name}] Finished adding {buffer}m buffer to {input_table} to make {output_table}")
+            # Success Gate: Only update registry now
+            if self.postgis.set_table_completed(self.node.output):
+                self.log.info(f"[{self.node.name}] Finished adding {buffer}m buffer to {input_table} to make {output_table}")
+                return True
+            else:
+                # This catches the bug where the node was never registered initially
+                self.log.error(f"Buffer added but registry record for {self.node.output} was not found.")
+                return False
 
-            return True
         except Error as e:
             self.log.error(f"[{self.node.name}] PostGIS error during buffer creation: {e}")
             return False
@@ -182,7 +189,7 @@ class OpenSiteSpatial(ProcessBase):
         """
 
         if self.postgis.table_exists(self.node.output):
-            self.log.error(f"[{self.node.output}] already exists, skipping preprocess for {self.node.name}")
+            self.log.info(f"[{self.node.output}] already exists, skipping preprocess for {self.node.name}")
             self.node.status = 'processed'
             return True
     
@@ -232,7 +239,7 @@ class OpenSiteSpatial(ProcessBase):
         query_output_index  = sql.SQL("CREATE INDEX {output_index} ON {output} USING GIST (geom)").format(**dbparams)
         
         try:
-            self.log.info(f"[{self.node.name}] Select only polygons, dump and make valid")
+            self.log.info(f"[{self.node.name}] Preprocess: Select only polygons, dump and make valid")
 
             self.postgis.execute_query(query_s1_dump_makevalid)
             self.postgis.execute_query(query_s1_index)
@@ -274,6 +281,15 @@ class OpenSiteSpatial(ProcessBase):
             self.postgis.drop_table(scratch_table_1)
             self.postgis.drop_table(scratch_table_2)
 
+            # Success Gate: Only update registry now
+            if self.postgis.set_table_completed(self.node.output):
+                self.log.info(f"[{self.node.name}] Preprocess: COMPLETED")
+                return True
+            else:
+                # This catches the bug where the node was never registered initially
+                self.log.error(f"Preprocess completed but registry record for {self.node.output} was not found.")
+                return False
+
             return True
         except Error as e:
             self.log.error(f"[{self.node.name}] PostGIS error during buffer creation: {e}")
@@ -282,16 +298,104 @@ class OpenSiteSpatial(ProcessBase):
             self.log.error(f"[{self.node.name}] Unexpected error: {e}")
             return False
 
-    def amalgamate(self):
+    def amalgamate(self, graph: OpenSiteGraph):
         """
         Amalgamates datasets into one
-        Note: amalgamate is universally applied to all geographical subcomponents so if 
-        there is only one subcomponent, eg. 'airspace--uk', then there is no actual 
-        amalgamation to perform and data is simply copied over to amalgamate node        
+        Note: amalgamate is universally applied to all geographical subcomponents even if one subcomponent
         """
 
         if self.postgis.table_exists(self.node.output):
-            self.log.info(f"[{self.node.output}] already exists, skipping import")
+            self.log.info(f"[{self.node.output}] already exists, skipping amalgamate")
             self.node.status = 'processed'
             return True
 
+        if not self.postgis.table_exists(OpenSiteConstants.OPENSITE_PROCESSINGGRID):
+            self.log.info("Processing grid does not exist, creating it...")
+            if not self.create_processing_grid():
+                self.log.error(f"Failed to create processing grid, unable to amalgamate {self.node.name}")
+                self.node.status = 'failed'
+                return False
+
+        print("Step 1")
+        grid_table = OpenSiteConstants.OPENSITE_PROCESSINGGRID
+        gridsquare_ids = self.get_processing_grid_square_ids()
+        scratch_table_1 = '_s1_' + self.node.output
+        children = self.node['custom_properties']['children']
+        print(children)
+        
+        dbparams = {
+            "crs": sql.Literal(self.get_crs_number()),
+            "grid": sql.Identifier(grid_table),
+            "scratch1": sql.Identifier(scratch_table_1),
+            "output": sql.Identifier(self.node.output),
+            "scratch1_index": sql.Identifier(f"{scratch_table_1}_idx"),
+            "output_index": sql.Identifier(f"{self.node.output}_idx"),
+        }
+        print("Step 2")
+
+        # Drop scratch tables
+        self.postgis.drop_table(scratch_table_1)
+
+        try:
+            self.log.info(f"[{self.node.name}] Amalgamate: Starting amalgamation and dissolving")
+
+            # Create output table regardless of number of children
+            self.postgis.execute_query(sql.SQL("CREATE UNLOGGED TABLE {output} (id int, geom geometry(Geometry, {crs}))").format(**dbparams))
+            self.postgis.add_table_comment(self.node.output, self.node.name)
+
+            if len(children) == 1:
+                dbparams['input'] = sql.Identifier(children[0])
+                self.log.info(f"[{self.node.name}] Single child so directly copying from {dbparams['input']} to {dbparams['output']}")
+                self.postgis.execute_query(sql.SQL("INSERT INTO {output} SELECT * FROM {input}").format(**dbparams))
+                self.postgis.execute_query(sql.SQL("CREATE INDEX ON {output} USING GIST (geom)").format(**dbparams))
+                return True
+
+            # Create empty tables first using UNLOGGED for speed
+            self.postgis.execute_query(sql.SQL("CREATE UNLOGGED TABLE {scratch1} (id int, geom geometry(Geometry, {crs}))").format(**dbparams))
+    
+            # Pour each child table in one by one
+            child_index = 0
+            for child in children:
+                child_index += 1
+                dbparams['input'] = sql.Identifier(child)
+                self.log.info(f"[{self.node.name}] Amalgamating child table {child_index}/{len(children)}")
+                query_add_table = sql.SQL("INSERT INTO {scratch1} (id, geom) SELECT id, (ST_Dump(geom)).geom FROM {input}").format(**dbparams)
+                self.postgis.execute_query(query_add_table)
+
+            self.postgis.execute_query(sql.SQL("CREATE INDEX ON {scratch1} USING GIST (geom)").format(**dbparams))
+
+            gridsquare_index = 0
+            for gridsquare_id in gridsquare_ids:
+                gridsquare_index += 1
+
+                self.log.info(f"[{self.node.name}] Using ST_Union to generate amalgamated grid square {gridsquare_index}/{len(gridsquare_ids)}")
+
+                dbparams['gridsquare_id'] = sql.Literal(gridsquare_id)
+                
+                query_union_by_gridsquare = sql.SQL("""
+                    INSERT INTO {output} (id, geom)
+                        SELECT grid.id, (ST_Dump(ST_Union(ST_Intersection(grid.geom, dataset.geom)))).geom FROM {grid} grid
+                        INNER JOIN {scratch1} dataset ON ST_Intersects(grid.geom, dataset.geom)
+                        WHERE grid.id = {gridsquare_id} AND ST_GeometryType(dataset.geom) = 'ST_Polygon' 
+                        GROUP BY grid.id
+                """).format(**dbparams)
+                self.postgis.execute_query(query_union_by_gridsquare)
+
+            self.postgis.execute_query(sql.SQL("CREATE INDEX ON {output} USING GIST (geom)").format(**dbparams))
+            self.postgis.drop_table(scratch_table_1)
+
+            # Success Gate: Only update registry now
+            if self.postgis.set_table_completed(self.node.output):
+                self.log.info(f"[{self.node.name}] Amalgamate: COMPLETED")
+                return True
+            else:
+                # This catches the bug where the node was never registered initially
+                self.log.error(f"Amalgamate completed but registry record for {self.node.output} was not found.")
+                return False
+
+        except Error as e:
+            self.log.error(f"[{self.node.name}] PostGIS error during amalgamation: {e}")
+            return False
+        except Exception as e:
+            self.log.error(f"[{self.node.name}] Unexpected error: {e}")
+            return False

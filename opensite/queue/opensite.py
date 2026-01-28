@@ -18,6 +18,10 @@ from opensite.processing.importer import OpenSiteImporter
 from opensite.processing.spatial import OpenSiteSpatial
 
 class OpenSiteQueue:
+
+    DOWNLOAD_RETRY_INTERVAL         = 30
+    DOWNLOAD_RETRY_TOTALATTEMPTS    = 10
+
     def __init__(self, graph, max_workers=None, log_level=logging.DEBUG):
         self.graph = graph
         self.action_groups = self.graph.get_action_groups()
@@ -205,7 +209,13 @@ class OpenSiteQueue:
             
             if node.action == 'download':
                 downloader = OpenSiteDownloader(log_level, shared_lock)
-                success = downloader.get(node)
+                # As lowest-level downloads are important to efficient parallelism
+                # we retry failed downloads
+                for attempts in range(self.DOWNLOAD_RETRY_TOTALATTEMPTS):
+                    success = downloader.get(node)
+                    if success: break
+                    self.graph.log.info(f"[I/O:{node.action}] {node.name} Download attempt {attempts + 1} failed - retrying after {self.DOWNLOAD_RETRY_INTERVAL} seconds")
+                    time.sleep(self.DOWNLOAD_RETRY_INTERVAL)
 
             elif node.action == 'unzip':
                 unzipper = OpenSiteUnzipper(node, log_level, shared_lock)
@@ -248,13 +258,19 @@ class OpenSiteQueue:
                 # print(json.dumps(dict(shared_metadata), indent=4))
 
                 # 1. Get nodes that are ready to run (Dependencies met)
-                ready_nodes = self.get_runnable_nodes(actions=['download', 'unzip', 'concatenate', 'run', 'import', 'preprocess', 'buffer'], checksizes=True)
+                ready_nodes = self.get_runnable_nodes(actions=['download', 'unzip', 'concatenate', 'run', 'import', 'preprocess', 'buffer', 'amalgamate'], checksizes=True)
                 
                 # Filter out nodes that are already currently in flight
                 new_nodes = [n for n in ready_nodes if n.urn not in active_tasks.values()]
 
-                # 2. Submit new tasks to the appropriate executor
+                # Submit new tasks to the appropriate executor
                 for node in new_nodes:
+                    # Update any 'amalgamate' nodes that are now possible with appropriate 'output' value
+                    if node.action == 'amalgamate':
+                        children_info = self.graph.get_children_info(node)
+                        node.custom_properties['children'] = children_info['children']
+                        node.output = children_info['output']
+
                     if node.action in self.action_groups['io_bound']:
                         future = io_exec.submit(self.process_io_task, node, self.log_level, shared_lock, shared_metadata)
                         active_tasks[future] = node.urn
@@ -287,7 +303,8 @@ class OpenSiteQueue:
                                  if n.get('status') not in ['completed', 'failed', 'skipped']]
                     
                     if not unfinished:
-                        self.graph.log.info("Processing complete.")
+                        self.graph.log.info("{'='*60}\nPROCESSING COMPLETE\n{'='*60}\n")
+                        break
                     else:
                         self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unfinished")
                         break

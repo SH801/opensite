@@ -152,12 +152,10 @@ class OpenSiteImporter(ProcessBase):
             # Success Gate: Only update registry now
             if self.postgis.set_table_completed(self.node.output):
                 self.log.info(f"Import and registry update complete for {os.path.basename(input_file)} into table {self.node.output}")
-                self.node.status = 'processed'
                 return True
             else:
                 # This catches the bug where the node was never registered initially
-                self.log.error(f"Import succeeded but Registry record for {self.node.output} was not found.")
-                self.node.status = 'failed'
+                self.log.error(f"Import succeeded but registry record for {self.node.output} was not found.")
                 return False
             
         except subprocess.CalledProcessError as e:
