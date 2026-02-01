@@ -69,7 +69,7 @@ class OpenSiteOutputWeb(OutputBase):
             openmaptiles_style_file_src = str(OpenSiteConstants.TILESERVER_INSTALL_FOLDER / 'openmaptiles.json')
             openmaptiles_style_file_dst = str(OpenSiteConstants.TILESERVER_STYLES_FOLDER / 'openmaptiles.json')
             openmaptiles_style_json = json.load(open(openmaptiles_style_file_src, 'r', encoding='utf-8'))
-            openmaptiles_style_json['sources']['openmaptiles']['url'] = str(OpenSiteConstants.TILESERVER_DATA_FOLDER / 'openmaptiles.json')
+            openmaptiles_style_json['sources']['openmaptiles']['url'] = OpenSiteConstants.TILESERVER_URL + "/data/openmaptiles.json"
             openmaptiles_style_json['glyphs'] = fonts_url
             json.dump(openmaptiles_style_json, open(openmaptiles_style_file_dst, 'w', encoding='utf-8'), indent=4)
 
@@ -130,7 +130,7 @@ class OpenSiteOutputWeb(OutputBase):
                             {
                                 "type":         "vector",
                                 "buffer":       512,
-                                "url":          str(Path(OpenSiteConstants.TILESERVER_URL) / "data" / f"{dataset['dataset']}.json"),
+                                "url":          OpenSiteConstants.TILESERVER_URL + f"/data/{dataset['dataset']}.json",
                                 "attribution":  attribution
                             }
                         },
@@ -154,15 +154,16 @@ class OpenSiteOutputWeb(OutputBase):
                     opensite_layer = style_json['layers'][0]
                     # Temporary workaround as setting 'fill-outline-color'='#FFFFFF00' on individual style breaks WMTS
                     opensite_layer['paint']['fill-outline-color'] = "#FFFFFF00"
+                    opensite_layer['layout'] = {'visibility': 'visible'}
 
-                    if dataset['defaultactive']: 
-                         opensite_layer['layout'] = {'visibility': 'visible'}
-                    else: 
-                         opensite_layer['layout'] = {'visibility': 'none'}
+                    # if dataset['defaultactive']: 
+                    #      opensite_layer['layout'] = {'visibility': 'visible'}
+                    # else: 
+                    #      opensite_layer['layout'] = {'visibility': 'none'}
 
-                    # Hide first dataset
-                    if firstdataset: 
-                         opensite_layer['layout'] = {'visibility': 'none'}
+                    # # Hide first dataset
+                    # if firstdataset: 
+                    #      opensite_layer['layout'] = {'visibility': 'none'}
 
                     opensite_style_json['layers'].append(opensite_layer)
                     opensite_style_json['sources'][dataset['dataset']] = style_json['sources'][dataset['dataset']]
@@ -198,14 +199,12 @@ class OpenSiteOutputWeb(OutputBase):
             self.log.error(f"General error when generating openmaptiles.json: {e}")
             return False
 
-    def clear_tileserver_data_folder(self, exceptions):
+    def clear_folder(self, folder_path, exceptions=[]):
         """
-        Clears tileserver data folder avoiding exceptions
+        Clears folder avoiding exceptions
         """
 
-        self.log.info("Deleting non-basemap mbtiles from tileserver data folder")
-
-        for entry in os.scandir(str(OpenSiteConstants.TILESERVER_DATA_FOLDER)):
+        for entry in os.scandir(folder_path):
             if entry.is_file() or entry.is_symlink():
                 filename = os.path.basename(entry.path)
                 if filename not in exceptions:
@@ -247,9 +246,17 @@ class OpenSiteOutputWeb(OutputBase):
                 self.log.error("No branches set, unable to generate web tileserver configuration files")
                 return False
             
-            # All branches will share same default 'osm-default' path which was used to generate basemap
+            # All branches share same 'osm-default' path used to 
+            # generate basemap so okay to use first branch to get path
             osm_basemap_mbtiles_file = os.path.basename(self.node.custom_properties[0]['osm-default']).replace('.osm.pbf', '.mbtiles')
-            self.clear_tileserver_data_folder(exceptions=[osm_basemap_mbtiles_file])
+
+            self.log.info("Deleting non-basemap mbtiles from tileserver data folder")
+            self.clear_folder(str(OpenSiteConstants.TILESERVER_DATA_FOLDER), exceptions=[osm_basemap_mbtiles_file])
+
+            self.log.info("Deleting style files from tileserver styles folder")
+            self.clear_folder(str(OpenSiteConstants.TILESERVER_STYLES_FOLDER))
+
+            self.log.info("Generating mbtiles style files")
             self.output_mbtiles_styles(osm_basemap_mbtiles_file)
 
             return True

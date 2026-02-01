@@ -13,8 +13,8 @@ height-to-tip:
 osm:
   https://download.geofabrik.de/europe/united-kingdom-latest.osm.pbf
 
-clip:
-  East Sussex
+# clip:
+#   East Sussex
   
 areas:
   - england

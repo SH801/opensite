@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}
+Output files
+{% endblock title %}
+
+{% block headline %}
+Output files
+{% endblock headline %}
+
+{% block content %}
+
+<div class="row">
+
+    <div class="col-lg-12">
+
+        <div class="mb-2">
+            <a href="/downloadall">
+                <button class="btn text-sm btn-success mb-1 btn-icon-split">
+                    <span class="icon">
+                        <i class="fa fa-download"></i>
+                    </span>
+                    <span class="text"><b>Download all</b></span>
+                </button></a>
+
+            <a href="/downloadgpkg">
+                <button class="btn text-sm btn-info mb-1 btn-icon-split">
+                    <span class="icon">
+                        <i class="fa fa-download"></i>
+                    </span>
+                    <span class="text">All GPKG</span>
+                </button></a>
+
+            <a href="/downloadgeojson">
+                <button class="btn text-sm btn-info mb-1 btn-icon-split">
+                    <span class="icon">
+                        <i class="fa fa-download"></i>
+                    </span>
+                    <span class="text">All GeoJSON</span>
+                </button></a>
+
+            <a href="/downloadshp">
+                <button class="btn text-sm btn-info mb-1 btn-icon-split">
+                    <span class="icon">
+                        <i class="fa fa-download"></i>
+                    </span>
+                    <span class="text">All SHP</span>
+                </button></a>
+
+            {% if qgis == True %}
+                <a href="/downloadqgis">
+                <button class="btn text-sm btn-primary mb-1 btn-icon-split">
+                    <span class="icon">
+                        <i class="fa fa-download"></i>
+                    </span>
+                    <span class="text">QGIS file + attachments</span>
+                </button></a>
+            {% endif %}
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Individual files</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>File name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {%- for file in files %}
+                            <tr>
+                                <td>
+                                    <a href="{{ file['url'] }}">
+                                    <button class="btn ml-0 text-sm">
+                                        <span class="icon">
+                                            <i class="fa fa-download"></i>
+                                        </span>
+                                        <span class="ml-2">{{ file['name'] -}}</span>
+                                    </button>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock content %}

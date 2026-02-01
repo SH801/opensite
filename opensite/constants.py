@@ -121,11 +121,11 @@ class OpenSiteConstants:
     # ------------------------------------------------------------
     TILESERVER_INSTALL_FOLDER   = INSTALL_FOLDER / "tileserver"
     TILESERVER_INSTALL_SPRITES  = TILESERVER_INSTALL_FOLDER / "sprites"
-    TILESERVER_OUTPUT_FOLDER    = OUTPUT_FOLDER / "tileserver"
+    TILESERVER_OUTPUT_FOLDER    = BUILD_ROOT / "tileserver"
     TILESERVER_CONFIG_FILE      = TILESERVER_OUTPUT_FOLDER / 'config.json'
     TILESERVER_DATA_FOLDER      = TILESERVER_OUTPUT_FOLDER / "data"
     TILESERVER_STYLES_FOLDER    = TILESERVER_OUTPUT_FOLDER / "styles"
-    TILESERVER_MAIN_STYLE_FILE  = TILESERVER_STYLES_FOLDER / 'openwindenergy.json'
+    TILESERVER_MAIN_STYLE_FILE  = TILESERVER_STYLES_FOLDER / 'opensiteenergy.json'
     TILESERVER_SPRITES_FOLDER   = TILESERVER_OUTPUT_FOLDER / "sprites"
     TILESERVER_FONTS_FOLDER     = TILESERVER_OUTPUT_FOLDER / "fonts"
     TILESERVER_FONTS_GITHUB     = "https://github.com/open-wind/openmaptiles-fonts.git"
