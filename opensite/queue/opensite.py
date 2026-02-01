@@ -273,7 +273,7 @@ class OpenSiteQueue:
             while True:
 
                 # 1. Get nodes that are ready to run (Dependencies met)
-                ready_nodes = self.get_runnable_nodes(actions=None, checksizes=False)
+                ready_nodes = self.get_runnable_nodes(actions=None, checksizes=True)
                 
                 # Filter out nodes that are already currently in flight
                 new_nodes = [n for n in ready_nodes if n.urn not in active_tasks.values()]
@@ -359,6 +359,9 @@ class OpenSiteQueue:
                         # Normalize status extraction
                         status = result[1] if isinstance(result, tuple) else result
                         
+                        # # Reset any 'failed' nodes to 'unprocessed' so we keep retrying
+                        # if status == 'failed': status = 'unprocessed'
+
                         self.sync_global_status(urn, status)
                         
                         # Generate preview to show incremental progress

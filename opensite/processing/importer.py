@@ -3,6 +3,7 @@ import subprocess
 import json
 import logging
 import sqlite3
+import tempfile
 from pathlib import Path
 from opensite.processing.base import ProcessBase
 from opensite.constants import OpenSiteConstants
@@ -73,6 +74,70 @@ class OpenSiteImporter(ProcessBase):
                 firstrow = result[0]
                 return 'EPSG:' + str(dict(firstrow)['srs_id'])
   
+    def sanitize_geojson_inplace(self, file_path, s_epsg):
+        """
+        Cleans the GeoJSON, overwrites the original, and logs via self.log.
+        Returns: True if features were removed, False if no changes were made.
+        """
+        if not os.path.exists(file_path):
+            self.log.error(f"File {file_path} not found.")
+            return False
+
+        # Load data
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+        except Exception as e:
+            self.log.error(f"Failed to parse JSON for {file_path}: {e}")
+            return False
+
+        original_count = len(data.get('features', []))
+        INF_THRESHOLD = 1e300
+        clean_features = []
+
+        # Recursive check for nested coordinates
+        def is_coord_valid(c):
+            if isinstance(c, (int, float)):
+                return abs(c) < INF_THRESHOLD
+            return all(is_coord_valid(sub) for sub in c)
+
+        # Filter
+        for feature in data.get('features', []):
+            geom = feature.get('geometry')
+            if geom and 'coordinates' in geom:
+                if is_coord_valid(geom['coordinates']):
+                    clean_features.append(feature)
+
+        new_count = len(clean_features)
+        has_changed = new_count < original_count
+
+        # Action
+        if not has_changed:
+            self.log.info(f"No invalid features found in {file_path}. No changes made.")
+            return False
+
+        if new_count == 0 and original_count > 0:
+            self.log.error(f"Sanitization would remove ALL features from {file_path}. Aborting.")
+            return False
+
+        # Atomic Write-back
+        try:
+            # Create temp file in same directory
+            fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(file_path))
+            with os.fdopen(fd, 'w') as tmp:
+                data['features'] = clean_features
+                json.dump(data, tmp)
+            
+            os.replace(temp_path, file_path)
+            self.log.info(f"Sanitized {file_path}: Removed {original_count - new_count} features.")
+            return True
+            
+        except Exception as e:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.remove(temp_path)
+            self.log.error(f"Failed to write sanitized file {file_path}: {e}")
+            return False
+
     def run(self):
         """
         Imports spatial files into PostGIS, resolving variables if needed
@@ -90,6 +155,7 @@ class OpenSiteImporter(ProcessBase):
             input_file_variable_name = input_file
             input_file = self.get_variable(input_file_variable_name)
             yaml_path = str(Path(self.base_path) / self.node.custom_properties['yml'])
+            # Layer name within GPKG is defined in osm-export-tool YML file topmost variable
             osm_export_tool_layer_name = self.get_top_variable(yaml_path)
             self.log.debug(f"Resolved osm-export-tool variable {input_file_variable_name} to layer name: {osm_export_tool_layer_name}")
         else:
@@ -102,6 +168,7 @@ class OpenSiteImporter(ProcessBase):
 
         # Connection and Validation
         pg_conn = self.postgis.get_ogr_connection_string()
+        input_projection = self.get_projection(input_file, self.node.name)
 
         # Base ogr2ogr Command
         cmd = [
@@ -114,7 +181,7 @@ class OpenSiteImporter(ProcessBase):
             "-lco", "GEOMETRY_NAME=geom",
             "-nln", self.node.output,
             "-nlt", "PROMOTE_TO_MULTI",
-            "-s_srs", self.get_projection(input_file, self.node.name), 
+            "-s_srs", input_projection, 
             "-t_srs", OpenSiteConstants.CRS_DEFAULT, 
             "--config", "PG_USE_COPY", "YES"
         ]
@@ -161,6 +228,14 @@ class OpenSiteImporter(ProcessBase):
                 return False
             
         except subprocess.CalledProcessError as e:
-            self.log.error(f"PostGIS Import Error: {os.path.basename(input_file)} {e.stderr}")
-            self.node.status = 'failed'
+
+            # If errors with ogr2ogr, there may be invalid geometries in file 
+            # eg. points outside CRS, so attempt to remove elements and retry
+            if input_file.endswith('.geojson'):
+                if self.sanitize_geojson_inplace(input_file, input_projection):
+                    self.log.info(f"sanitize_geojson_inplace removed problem geometries so rerunning ogr2ogr on {os.path.basename(input_file)}")
+                    return self.run()
+
+            self.log.error(f"PostGIS Import Error: {os.path.basename(input_file)} {' '.join(cmd)} {e.stderr}")
+
             return False

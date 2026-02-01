@@ -286,27 +286,23 @@ class OpenSiteSpatial(ProcessBase):
         gridsquare_ids = self.get_processing_grid_square_ids()
         scratch_table_1 = '_s1_' + self.node.output
         scratch_table_2 = '_s2_' + self.node.output
-        scratch_table_3 = '_s3_' + self.node.output
 
         dbparams = {
-            "crs": sql.Literal(self.get_crs_default()),
+            "crs": sql.Literal(int(self.get_crs_default())),
             "grid": sql.Identifier(grid_table),
             "clip": sql.Identifier(clip_table),
             "input": sql.Identifier(self.node.input),
             "scratch1": sql.Identifier(scratch_table_1),
             "scratch2": sql.Identifier(scratch_table_2),
-            "scratch3": sql.Identifier(scratch_table_3),
             "output": sql.Identifier(self.node.output),
             "scratch1_index": sql.Identifier(f"{scratch_table_1}_idx"),
             "scratch2_index": sql.Identifier(f"{scratch_table_2}_idx"),
-            "scratch3_index": sql.Identifier(f"{scratch_table_3}_idx"),
             "output_index": sql.Identifier(f"{self.node.output}_idx"),
         }
 
         # Drop scratch tables
         self.postgis.drop_table(scratch_table_1)
         self.postgis.drop_table(scratch_table_2)
-        self.postgis.drop_table(scratch_table_3)
 
         # Explode geometries with ST_Dump to remove MultiPolygon,
         # MultiSurface, etc and homogenize processing
@@ -319,28 +315,38 @@ class OpenSiteSpatial(ProcessBase):
             FROM    (SELECT (ST_Dump(geom)).geom geom FROM {input}) dumped 
             WHERE   ST_geometrytype(dumped.geom) = 'ST_Polygon'
         """).format(**dbparams)
-        query_s2_clip_1 = sql.SQL("""
-        CREATE TABLE {scratch2} AS 
-            SELECT ST_Intersection(clip.geom, data.geom) geom
-            FROM {scratch1} data, {clip} clip 
-            WHERE (NOT ST_Contains(clip.geom, data.geom) AND ST_Intersects(clip.geom, data.geom))
+        query_s2_table_create = sql.SQL("""
+        CREATE TABLE {scratch2} (
+            gid SERIAL PRIMARY KEY,
+            id INTEGER,
+            geom GEOMETRY(Polygon, {crs}))
         """).format(**dbparams)
-        query_s2_clip_2 = sql.SQL("""
-        INSERT INTO {scratch2}  
-            SELECT data.geom  
-            FROM {scratch1} data, {clip} clip 
-            WHERE ST_Contains(clip.geom, data.geom)
+        query_s2_table_insert = """
+        INSERT INTO {scratch2} (id, geom)
+            SELECT 
+                grid.id, (ST_Dump(ST_Intersection(grid.geom, ST_UnaryUnion(ST_Collect(data.geom))))).geom::geometry(Polygon, {crs})
+            FROM {grid} grid
+            JOIN {scratch1} data ON ST_Intersects(grid.geom, data.geom)
+            WHERE grid.id = {gridsquare_id}
+            GROUP BY grid.id, grid.geom;
+        """
+        query_output_create = sql.SQL("""
+        CREATE TABLE {output} AS
+        SELECT 
+            data.id, (ST_Dump(data.geom)).geom::geometry(Polygon, {crs}) as geom
+        FROM {scratch2} data
+        JOIN {clip} clipper ON ST_Contains(clipper.geom, data.geom)
+
+        UNION ALL
+
+        SELECT 
+            data.id, (ST_Dump(ST_CollectionExtract(ST_Intersection(data.geom, clipper.geom), 3))).geom::geometry(Polygon, {crs})
+        FROM {scratch2} data
+        JOIN {clip} clipper ON ST_Intersects(data.geom, clipper.geom) 
+        AND NOT ST_Contains(clipper.geom, data.geom);
         """).format(**dbparams)
-        query_s3_dump       = sql.SQL("CREATE TABLE {scratch3} AS SELECT (ST_Dump(geom)).geom geom FROM {scratch2}").format(**dbparams)
-        query_output_create = sql.SQL("CREATE TABLE {output} (id INTEGER, geom GEOMETRY(Polygon, {crs}))").format(**dbparams)
-        query_output_process_gridsquare = """
-        INSERT INTO {output} 
-            SELECT  grid.id, (ST_Dump(ST_Union(ST_Intersection(grid.geom, dataset.geom)))).geom geom 
-            FROM {grid} grid, {scratch3} dataset 
-            WHERE grid.id = {gridsquare_id} AND ST_geometrytype(dataset.geom) = 'ST_Polygon' GROUP BY grid.id"""
         query_s1_index      = sql.SQL("CREATE INDEX {scratch1_index} ON {scratch1} USING GIST (geom)").format(**dbparams)
         query_s2_index      = sql.SQL("CREATE INDEX {scratch2_index} ON {scratch2} USING GIST (geom)").format(**dbparams)
-        query_s3_index      = sql.SQL("CREATE INDEX {scratch3_index} ON {scratch3} USING GIST (geom)").format(**dbparams)
         query_output_index  = sql.SQL("CREATE INDEX {output_index} ON {output} USING GIST (geom)").format(**dbparams)
 
         try:
@@ -349,25 +355,9 @@ class OpenSiteSpatial(ProcessBase):
             self.postgis.execute_query(query_s1_dump_makevalid)
             self.postgis.execute_query(query_s1_index)
 
-            self.log.info(f"[preprocess] [{self.node.name}] Clipping polygons [1] - Adding border-overlapping polygons")
+            self.log.info(f"[preprocess] [{self.node.name}] Cutting data into grid squares and running ST_Union on each square")
 
-            self.postgis.execute_query(query_s2_clip_1)
-
-            self.log.info(f"[preprocess] [{self.node.name}] Clipping polygons [2] - Adding fully enclosed polygons")
-
-            self.postgis.execute_query(query_s2_clip_2)
-            self.postgis.execute_query(query_s2_index)
-
-            self.log.info(f"[preprocess] [{self.node.name}] Dumping geometries")
-
-            self.postgis.execute_query(query_s3_dump)
-            self.postgis.execute_query(query_s3_index)
-
-            self.log.info(f"[preprocess] [{self.node.name}] Creating preprocess table {self.node.output} by dissolving dataset")
-
-            self.postgis.execute_query(query_output_create)
-
-            self.postgis.add_table_comment(self.node.output, self.node.name)
+            self.postgis.execute_query(query_s2_table_create)
 
             gridsquares_index, gridsquares_count = 0, len(gridsquare_ids)
             last_log_time = time.time()
@@ -384,13 +374,17 @@ class OpenSiteSpatial(ProcessBase):
 
                 dbparams['gridsquare_id'] = sql.Literal(gridsquare_id)
                 
-                self.postgis.execute_query(sql.SQL(query_output_process_gridsquare).format(**dbparams))
+                self.postgis.execute_query(sql.SQL(query_s2_table_insert).format(**dbparams))
 
+            self.postgis.execute_query(query_s2_index)
+
+            self.log.info(f"[preprocess] [{self.node.name}] Creating final output")
+
+            self.postgis.execute_query(query_output_create)
             self.postgis.execute_query(query_output_index)
-
+            self.postgis.add_table_comment(self.node.output, self.node.name)
             self.postgis.drop_table(scratch_table_1)
             self.postgis.drop_table(scratch_table_2)
-            self.postgis.drop_table(scratch_table_3)
 
             # Success Gate: Only update registry now
             if self.postgis.set_table_completed(self.node.output):
