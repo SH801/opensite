@@ -36,5 +36,9 @@ venv.bak
 .DS_Store
 
 tidy_away_move_back_when_advanced
-overall-clipping.gpkg
 opensite.log
+PROCESSING
+PROCESSINGCMD
+PROCESSINGSTART
+PROCESSINGCOMPLETE
+log-ogr2ogr.txt

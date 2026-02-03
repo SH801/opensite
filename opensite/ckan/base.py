@@ -10,7 +10,7 @@ class CKANBase:
         self.url = url
         self.apikey = apikey
         self._raw_cache = [] 
-        self.log = LoggingBase("CKAN-Base", log_level)
+        self.log = LoggingBase("CKANBase", log_level)
 
     def load(self, target_group='data-explorer'):
         """

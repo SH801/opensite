@@ -159,14 +159,18 @@ class OpenSiteApplication:
 
         return True
 
+    def early_check_area(self, area):
+        """If boundaries table exist, check area is valid"""
+
+        postgis = OpenSitePostGIS()
+        if postgis.table_exists(OpenSiteConstants.OPENSITE_OSMBOUNDARIES):
+            country = postgis.get_country_from_area(area)
+            return (country is not None)
+
     def run(self):
         """
         Runs OpenSite application
         """
-
-        RED = "\033[91m"
-        BOLD = "\033[1m"
-        RESET = "\033[0m"
 
         if OpenSiteConstants.SERVER_BUILD:
             if Path(OpenSiteConstants.PROCESSING_COMPLETE_FILE).exists():
@@ -176,30 +180,38 @@ class OpenSiteApplication:
         # Initialise CLI
         cli = OpenSiteCLI(log_level=self.log_level) 
         if cli.purgedb:
-            print(f"\n{RED}{BOLD}{'='*60}")
+            print(f"\n{OpenSiteConstants.LOGGER_RED}{OpenSiteConstants.LOGGER_BOLD}{'='*60}")
             print(f"WARNING: You are about to delete all opensite tables")
             print(f"This includes registry, branch, and all spatial data tables.")
-            print(f"{'='*60}{RESET}\n")
+            print(f"{'='*60}{OpenSiteConstants.LOGGER_RESET}\n")
             
-            confirm = input(f"Type {BOLD}'yes'{RESET} to delete all OpenSite data: ").strip().lower()
+            confirm = input(f"Type {OpenSiteConstants.LOGGER_BOLD}'yes'{OpenSiteConstants.LOGGER_RESET} to delete all OpenSite data: ").strip().lower()
             if confirm == 'yes':
                 self.purgedb()
             else:
                 self.log.warning("Purge aborted. No tables were harmed.")
 
         if cli.purgeall:
-            print(f"\n{RED}{BOLD}{'='*60}")
+            print(f"\n{OpenSiteConstants.LOGGER_RED}{OpenSiteConstants.LOGGER_BOLD}{'='*60}")
             print(f"WARNING: You are about to delete all downloads and opensite tables")
             print(f"This includes registry, branch, and all spatial data tables.")
-            print(f"{'='*60}{RESET}\n")
+            print(f"{'='*60}{OpenSiteConstants.LOGGER_RESET}\n")
             
-            confirm = input(f"Type {BOLD}'yes'{RESET} to delete all downloads and OpenSite data: ").strip().lower()
+            confirm = input(f"Type {OpenSiteConstants.LOGGER_BOLD}'yes'{OpenSiteConstants.LOGGER_RESET} to delete all downloads and OpenSite data: ").strip().lower()
             if confirm == 'yes':
                 self.purgeall()
             else:
                 self.log.warning("Purge aborted. No files or tables were harmed.")
 
         self.init_environment()
+
+        # Attempt to check clipping area (if set) is valid
+        if cli.get_clip():
+            if not self.early_check_area(cli.get_clip()):
+                self.log.error(f"'{cli.get_clip()}' not found in boundary database, clipping will not be possible.")
+                self.log.error(f"Please select the name of a different clipping area.")
+                self.log.error(f"******** ABORTING ********")
+                exit()
 
         # Initialize CKAN open data repository to use throughout
         # CKAN may or may not be used to provide site YML configuration

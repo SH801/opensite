@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import requests
@@ -13,7 +14,7 @@ class DownloadBase:
     DOWNLOAD_INTERVAL_TIME = 5
 
     def __init__(self, log_level=logging.INFO, shared_lock=None, shared_metadata=None):
-        self.log = LoggingBase("Download-Base", log_level, shared_lock)
+        self.log = LoggingBase("DownloadBase", log_level, shared_lock)
         self.log_level = log_level
         self.shared_lock = shared_lock
         self.shared_metadata = shared_metadata if shared_metadata is not None else {}
@@ -179,6 +180,19 @@ class DownloadBase:
                 tmp_path.unlink()
             return None
 
+    def check_geojson_valid(self, file_path):
+        """
+        Checks whether GeoJSON file is JSON valid
+        """
+
+        try:
+            json_data = json.load(open(file_path))
+            return True
+        except:
+            self.log.error(f"{os.path.basename(file_path)} is invalid GeoJSON, deleting.")
+            os.remove(file_path)
+            return False
+
     def check_gpkg_valid(self, file_path):
         """
         Checks whether GPKG file is valid
@@ -223,11 +237,10 @@ class DownloadBase:
                 self.log.error(f"LOCK/ACCESS ISSUE: {os.path.basename(file_path)} - {e}")
             return None
 
-
     def check_download_valid(self, file_path):
         """
         Checks whether file is valid
-        Only GPKG currently supported
+        Only GPKG currently checked
         """
 
         if not Path(file_path).exists(): return None

@@ -4,7 +4,7 @@ from opensite.logging.base import LoggingBase
 
 class BaseCLI:
     def __init__(self, description: str, log_level=logging.INFO):
-        self.log = LoggingBase("Logger", log_level)
+        self.log = LoggingBase("BaseCLI", log_level)
         self.parser = argparse.ArgumentParser(description=description)
         self.args = None
 

@@ -597,7 +597,7 @@ class OpenSiteSpatial(ProcessBase):
         dbparams = {
             "crs": sql.Literal(int(self.get_crs_default())),
             "area": sql.Literal(area),
-            "input": sql.Identifier(input),
+            "input": sql.Identifier(self.node.input),
             "clip": sql.Identifier(OpenSiteConstants.OPENSITE_OSMBOUNDARIES),
             "cliptemp": sql.Identifier(cliptemp),
             "output": sql.Identifier(self.node.output),
@@ -605,14 +605,17 @@ class OpenSiteSpatial(ProcessBase):
             "output_index": sql.Identifier(f"{self.node.output}_idx"),
         }
 
+        # Run get_area_bounds as check to see if area exists in boundaries table
+        if not self.postgis.get_area_bounds(area):
+            self.log.error(f"[clip] Unable to find clipping area '{area}' in boundaries database, unable to proceed")
+            return False
+
         query_cliptemp_st_union = sql.SQL("""
         CREATE TABLE {cliptemp} AS 
             SELECT (ST_Dump(ST_Union(ST_MakeValid(geom)))).geom::geometry(Polygon, {crs}) as geom 
             FROM {clip} WHERE name = {area} OR council_name = {area}"""
         ).format(**dbparams)
         query_cliptemp_create_index = sql.SQL("CREATE INDEX {cliptemp_index} ON {cliptemp} USING GIST (geom)").format(**dbparams)
-
-
         query_fast_clip = sql.SQL("""
         CREATE TABLE {output} AS 
         SELECT 

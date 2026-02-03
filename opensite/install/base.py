@@ -12,7 +12,7 @@ class InstallBase:
     
     def __init__(self, node, log_level=logging.INFO, shared_lock=None, shared_metadata=None):
         self.node = node
-        self.log = LoggingBase("Install-Base", log_level, shared_lock)
+        self.log = LoggingBase("InstallBase", log_level, shared_lock)
         self.base_path = ""
         self.output_path = ""
         self.log_level = log_level

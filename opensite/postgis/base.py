@@ -17,7 +17,7 @@ load_dotenv()
 
 class PostGISBase:
     def __init__(self, log_level=logging.INFO):
-        self.log = LoggingBase("Logger", log_level)
+        self.log = LoggingBase("PostGISBase", log_level)
 
         self.host = os.getenv("POSTGRES_HOST", "localhost")
         self.database = os.getenv("POSTGRES_DB", "opensite")

@@ -292,7 +292,7 @@ class OpenSitePostGIS(PostGISBase):
             self.log.error(f"PostGIS Export Error: {spatial_data_table} {e.stderr}")
             return False
         
-    def get_area_bounds(self, area, crs_input, crs_output):
+    def get_area_bounds(self, area, crs_input=OpenSiteConstants.CRS_DEFAULT, crs_output=OpenSiteConstants.CRS_OUTPUT):
         """
         Get bounds of specific geometry with name = area
         """
@@ -315,13 +315,56 @@ class OpenSitePostGIS(PostGISBase):
         FROM 
             (
             SELECT ST_Transform(ST_SetSRID(ST_Extent(geom), {crs_input}), {crs_output}) AS extent_output_crs FROM {table} 
-            WHERE name = {area} OR council_name = {area}
+            WHERE name ILIKE {area} OR council_name ILIKE {area}
             ) AS subquery
         """).format(**dbparams)
 
         try:
             results = self.fetch_all(query_maxbounds)
+            if results[0]['left'] is None:
+                self.log.debug(f"Unable to find clipping area '{area}' in boundary database - unable to proceed")
+                return None
+
             return results[0]
         except Exception as e:
             self.log.error(f"PostGIS error: {e}")
             return None
+
+    def get_country_from_area(self, area):
+        """
+        Determine country that area is in using OPENSITE_OSMBOUNDARIES
+        """
+
+        # Get list of all possible OSM country names from OSM_NAME_CONVERT
+        countries = [OpenSiteConstants.OSM_NAME_CONVERT[country] for country in OpenSiteConstants.OSM_NAME_CONVERT.keys()]
+
+        dbparams = \
+        {
+            'area':         sql.Literal(area),
+            'boundaries':   sql.Identifier(OpenSiteConstants.OPENSITE_OSMBOUNDARIES),
+            'countries':    sql.Literal(countries),
+        }
+
+        query_find_containing_countries = sql.SQL("""
+        WITH primaryarea AS
+        (
+            SELECT geom FROM {boundaries} WHERE (name ILIKE {area}) OR (council_name ILIKE {area}) LIMIT 1
+        )
+        SELECT 
+            name, ST_Area(ST_Intersection(primaryarea.geom, secondaryarea.geom)) geom_intersection 
+        FROM 
+            {boundaries} secondaryarea, primaryarea 
+        WHERE 
+            name = ANY ({countries}) AND ST_Intersects(primaryarea.geom, secondaryarea.geom) 
+        ORDER BY geom_intersection DESC LIMIT 1;
+        """).format(**dbparams)
+                
+        containing_geometries = self.fetch_all(query_find_containing_countries)
+
+        if len(containing_geometries) > 0:
+            containing_country = containing_geometries[0]['name']
+            for canonical_country in OpenSiteConstants.OSM_NAME_CONVERT.keys():
+                if OpenSiteConstants.OSM_NAME_CONVERT[canonical_country] == containing_country: 
+                    return OpenSiteConstants.OSM_NAME_CONVERT[canonical_country]
+
+        return None

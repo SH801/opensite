@@ -67,7 +67,7 @@ class OpenSiteTileserver(InstallBase):
 
     def run(self):
         """
-        Installs tileserver-related files, main application and generates any basemaps
+        Installs tileserver-related core files and generates overall basemap
         """
 
         self.log.info("Installing tileserver files")

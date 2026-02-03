@@ -1,17 +1,20 @@
 title:
-  "Wind constraint layers for height-to-tip of 200m"
+  "Different wind constraint layers for height-to-tip of 200m"
 
 type:
   wind
 
 code:
-  wind-200
+  different-wind-200
   
 height-to-tip:
   200
 
 osm:
   https://download.geofabrik.de/europe/united-kingdom-latest.osm.pbf
+
+clip:
+  East Sussex
 
 areas:
   - england

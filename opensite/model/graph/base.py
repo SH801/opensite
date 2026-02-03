@@ -28,8 +28,6 @@ class Graph:
                                 "dependencies", 
                                 "log"
                             ]
-
-    # OUTPUT_FIELDS = ['urn', 'global_urn', 'name', 'title', 'input', 'output']
     
     def __init__(self, overrides: dict = None, log_level=logging.INFO):
         """
@@ -43,6 +41,8 @@ class Graph:
         self._defaults = {}
         self.load_defaults(self.DEFAULT_YML)
         self.root = self.create_node("root", node_type="root")
+        self.yaml_unique_id_field = 'id'
+        self.yaml_unique_ids = []
 
     def load_defaults(self, filepath: str):
         """
@@ -438,6 +438,22 @@ class Graph:
 
         return branch_name
 
+    def check_unique_id(self, data):
+        """
+        Checks unique id field of yaml to avoid potential data conflict issues 
+        """
+
+        if self.yaml_unique_id_field in data:
+            unique_id_value = data[self.yaml_unique_id_field]
+            if unique_id_value in self.yaml_unique_ids:
+                self.log.error(f"One input YAML file has conflicting id field '{self.yaml_unique_id_field}' = '{unique_id_value}' with another input YAML.")
+                self.log.error(f"Please change value of '{self.yaml_unique_id_field}' in one or more YAML files to resolve issue.")
+                self.log.error("******* ABORTING *******")
+                exit()
+            else:
+                self.yaml_unique_ids.append(unique_id_value)
+                return True
+
     def add_yaml(self, filepath: str):
         """Adds a YAML file as a new sibling branch under the root."""
         if not os.path.exists(filepath):
@@ -447,6 +463,8 @@ class Graph:
             data = yaml.safe_load(f)
 
         if not data: return False
+
+        self.check_unique_id(data)
 
         processed_data = data.copy()
 

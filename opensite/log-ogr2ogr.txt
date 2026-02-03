@@ -327,3 +327,167 @@ Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on
 ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
 ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
 Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/wind-200--residential-buildings-osm.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--all-layers--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--all-layers--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ecology-and-wildlife--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ecology-and-wildlife--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ancient-woodlands--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ancient-woodlands--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--hedgerows--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--hedgerows--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--local-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--local-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--national-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--national-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--osm-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--osm-nature-reserves--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ramsar-sites--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--ramsar-sites--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--sites-of-special-scientific-interest--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--sites-of-special-scientific-interest--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--special-areas-of-conservation--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--special-areas-of-conservation--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--special-protection-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--special-protection-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--wild-land-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--wild-land-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--aviation-and-exclusion-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--aviation-and-exclusion-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--airspace--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--airspace--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--civilian-airports--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--civilian-airports--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--danger-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--danger-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--mod-training-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--mod-training-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--other-technical-constraints--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--other-technical-constraints--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--bridleways--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--bridleways--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--inland-waters--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--inland-waters--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--pipelines--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--pipelines--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--power-lines--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--power-lines--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--public-footpaths--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--public-footpaths--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--public-roads-a-and-b-roads-and-motorways--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--public-roads-a-and-b-roads-and-motorways--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--railway-lines--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--railway-lines--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--environmental-data--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--environmental-data--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--inadequate-wind-speeds--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--inadequate-wind-speeds--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--landscape-and-visual-impacts--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--landscape-and-visual-impacts--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--areas-of-outstanding-natural-beauty--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--areas-of-outstanding-natural-beauty--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--heritage-coasts--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--heritage-coasts--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--national-parks--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--national-parks--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--heritage-impacts--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--heritage-impacts--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--conservation-areas--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--conservation-areas--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--listed-buildings--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--listed-buildings--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--registered-historic-battlefields--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--registered-historic-battlefields--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--registered-parks-and-gardens--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--registered-parks-and-gardens--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--scheduled-ancient-monuments--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--scheduled-ancient-monuments--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--world-heritage-sites--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--world-heritage-sites--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--separation-distance-from-residential-properties--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--separation-distance-from-residential-properties--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--residential-buildings-os--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--residential-buildings-os--clip-East-Sussex.gpkg' may only be partially supported
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--residential-buildings-osm--clip-East-Sussex.gpkg' may only be partially supported
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+ERROR 1: PROJ: proj_create_from_database: Cannot find proj.db
+Warning 1: This version of GeoPackage user_version=0x000028A0 (10400, v1.4.0) on '/Users/stefanhaselwimmer/Projects/OpenLibraries/opensite/build/output/layers/different-wind-200--residential-buildings-osm--clip-East-Sussex.gpkg' may only be partially supported

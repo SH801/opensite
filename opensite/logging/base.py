@@ -1,28 +1,23 @@
 import logging
 import sys
 import multiprocessing
+from opensite.constants import OpenSiteConstants
 
 class ColorFormatter(logging.Formatter):
     """Custom Formatter to add colors to log levels for Terminal only."""
     
-    BLUE = "\x1b[34m"    # Info
-    ORANGE = "\x1b[33m"  # Warning
-    RED = "\x1b[31m"     # Error
-    WHITE = "\x1b[37m"   # Debug
-    RESET = "\x1b[0m"
-
     FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
     LEVEL_COLORS = {
-        logging.DEBUG: WHITE,
-        logging.INFO: BLUE,
-        logging.WARNING: ORANGE,
-        logging.ERROR: RED,
+        logging.DEBUG:      OpenSiteConstants.LOGGER_WHITE,
+        logging.INFO:       OpenSiteConstants.LOGGER_BLUE,
+        logging.WARNING:    OpenSiteConstants.LOGGER_ORANGE,
+        logging.ERROR:      OpenSiteConstants.LOGGER_RED,
     }
 
     def format(self, record):
-        color = self.LEVEL_COLORS.get(record.levelno, self.RESET)
-        log_fmt = f"{color}{self.FORMAT}{self.RESET}"
+        color = self.LEVEL_COLORS.get(record.levelno, OpenSiteConstants.LOGGER_RESET)
+        log_fmt = f"{color}{self.FORMAT}{OpenSiteConstants.LOGGER_RESET}"
         # We create a temporary formatter with the colorized string
         formatter = logging.Formatter(log_fmt, datefmt='%H:%M:%S')
         return formatter.format(record)

@@ -103,9 +103,6 @@ div.link_container {
 .layer-item.level-2 { font-weight: normal; color: #444; }
 
 .layer-row label {
-    width: 290px;
-    overflow-x: hidden;
-    text-overflow: ellipsis;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -115,7 +112,9 @@ div.link_container {
 }
 
 .label-text {
-    width: 230px;
+    width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .color-dot {
@@ -304,7 +303,6 @@ function activateBranch(config, branchcode) {
         const newBranchCode = e.target.value;
         branch_active = newBranchCode;
         
-        console.log(newBranchCode);
         activateBranch(config, newBranchCode);
         
         const newBranchData = config.find(b => b.code === newBranchCode);

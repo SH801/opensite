@@ -30,7 +30,8 @@ class OpenSiteGraph(Graph):
         self.db = OpenSitePostGIS()
         self.db.sync_registry()
         self.outputformats = outputformats
-
+        self.yaml_unique_id_field = 'code'
+        
         # clip is special case as will be absent in defaults.yml 
         # so will not be automically added to self._overrides
         if clip: self._overrides['clip'] = clip
@@ -146,7 +147,7 @@ class OpenSiteGraph(Graph):
 
         return title
 
-    def generate_graph_preview(self, filename="graph_preview.html", load=False):
+    def generate_graph_preview(self, filename="graph.html", load=False):
         """
         Generates an interactive HTML preview.
         - Skips root node to show branches as separate networks.
@@ -1192,7 +1193,6 @@ class OpenSiteGraph(Graph):
                 clip = branch.custom_properties['yml']['clip']
                 title += f" clipped to '{clip}'"
                 suffix = f"--clip-{clip.replace(' ', '-')}"
-                bounds = self.db.get_area_bounds(clip, OpenSiteConstants.CRS_DEFAULT, OpenSiteConstants.CRS_OUTPUT)
 
             main_child = branch.children[0]
 
