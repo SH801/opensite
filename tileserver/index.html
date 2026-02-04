@@ -299,25 +299,27 @@ function activateBranch(config, branchcode) {
     container.appendChild(header);
     container.appendChild(body);
 
-    document.getElementById('branch-dropdown').addEventListener('change', (e) => {
-        const newBranchCode = e.target.value;
-        branch_active = newBranchCode;
-        
-        activateBranch(config, newBranchCode);
-        
-        const newBranchData = config.find(b => b.code === newBranchCode);
-        if (newBranchData && window.map) {
-            map.flyTo({
-                center: newBranchData.maplibre_centre,
-                zoom: 5.2, 
-                essential: true
-            });
+    if (config.length > 1) {
+        document.getElementById('branch-dropdown').addEventListener('change', (e) => {
+            const newBranchCode = e.target.value;
+            branch_active = newBranchCode;
             
-            const allCodes = config.map(item => item.code);
-            const hiddenBranches = allCodes.filter(c => c !== newBranchCode);
-            hideLayersByPrefix(hiddenBranches);
-        }
-    });
+            activateBranch(config, newBranchCode);
+            
+            const newBranchData = config.find(b => b.code === newBranchCode);
+            if (newBranchData && window.map) {
+                map.flyTo({
+                    center: newBranchData.maplibre_centre,
+                    zoom: 5.2, 
+                    essential: true
+                });
+                
+                const allCodes = config.map(item => item.code);
+                const hiddenBranches = allCodes.filter(c => c !== newBranchCode);
+                hideLayersByPrefix(hiddenBranches);
+            }
+        });
+    }
 
     document.getElementById('eye-icon').addEventListener('click', (e) => {
         e.stopPropagation();

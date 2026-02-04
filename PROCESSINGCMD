@@ -1,1 +1,1 @@
-./build.sh wind --outputformats=qgis,web
+./build.sh wind

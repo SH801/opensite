@@ -15,13 +15,13 @@ fi
 # Run simple webserver
 
 echo -e ""
-echo -e "\033[1;34m***********************************************************************\033[0m"
-echo -e "\033[1;34m************** OPEN SITE ENERGY - WEB + TILE SERVER RUNNING ***********\033[0m"
-echo -e "\033[1;34m***********************************************************************\033[0m"
+echo -e "\033[1;35m===========================================================\033[0m"
+echo -e "\033[1;35m****** OPEN SITE ENERGY - WEB + TILE SERVER RUNNING *******\033[0m"
+echo -e "\033[1;35m===========================================================\033[0m"
 echo -e ""
 echo -e "Open web browser and enter:"
 echo -e ""
-echo -e "\033[1;94mhttp://localhost:8000/\033[0m"
+echo -e "\033[1;36mhttp://localhost:8000/\033[0m"
 echo -e ""
 echo -e ""
 

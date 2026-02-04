@@ -117,11 +117,11 @@ class OpenSiteApplication:
         """Gets final message text"""
 
         final_message = f"""
-{Fore.MAGENTA}{'='*60}\n{'*'*10} OPEN SITE ENERGY BUILD PROCESS COMPLETE {'*'*9}\n{'='*60}{Style.RESET_ALL}
+{Fore.MAGENTA + Style.BRIGHT}{'='*60}\n{'*'*10} OPEN SITE ENERGY BUILD PROCESS COMPLETE {'*'*9}\n{'='*60}{Style.RESET_ALL}
 \nFinal layers created at:\n\n{Fore.CYAN + Style.BRIGHT}{OpenSiteConstants.OUTPUT_LAYERS_FOLDER}{Style.RESET_ALL}\n\n\n"""
 
         if 'web' in outputformats:
-            final_message += f"""To view latest constraint layers as map, enter:\n\n{Fore.CYAN + Style.BRIGHT}./webview.sh{Style.RESET_ALL}\n\n\n"""
+            final_message += f"""To view constraint layers as map, enter:\n\n{Fore.CYAN + Style.BRIGHT}./webview.sh{Style.RESET_ALL}\n\n\n"""
         
         if 'qgis' in outputformats:
             final_message += f"""QGIS file created at:\n\n{Fore.CYAN + Style.BRIGHT}{str(Path(OpenSiteConstants.OUTPUT_FOLDER) / OpenSiteConstants.OPENSITEENERGY_SHORTNAME)}.qgs{Style.RESET_ALL}\n\n"""
