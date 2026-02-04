@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import time
 import webbrowser
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from typing import List
@@ -41,6 +42,7 @@ class OpenSiteQueue:
         self.logger = OpenSiteLogger("OpenSiteQueue", self.log_level)
         self.server_thread = None
         self.stop_event = None
+        self.process_started = None
 
         # Resource Scaling
         self.cpus = os.cpu_count() or 1
@@ -60,7 +62,9 @@ class OpenSiteQueue:
 
         @app.get("/nodes")
         async def get_nodes():
-            return self.graph.to_json()
+            data = self.graph.to_json()
+            data['process_started'] = self.process_started
+            return data
 
         @app.get("/health")
         async def health():
@@ -307,6 +311,7 @@ class OpenSiteQueue:
         self.graph.log.info(f"Starting orchestration with {self.io_workers} I/O threads and {self.cpu_workers} CPU processes.")
         
         if preview:
+            self.process_started = datetime.now(timezone.utc).isoformat()
             # Run processing preview system
             self.stop_event = threading.Event()
             self.app = self._setup_fastapi()
