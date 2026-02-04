@@ -134,7 +134,7 @@
             
             const updates = processingNodes.map(node => ({
                 id: node.id,
-                color: { background: currentColor, border: factor > 0.5 ? "#FFA500" : "#333" }
+                color: { background: currentColor, border: "#333" }
             }));
             if (updates.length > 0) nodes.update(updates);
         }
@@ -215,7 +215,7 @@
         // Initialize
         updateGraph().then(() => setTimeout(() => network.fit(), 500));
         setInterval(updateGraph, 5000);
-        setInterval(pulseProcessingNodes, 50);
+        setInterval(pulseProcessingNodes, 20);
         setInterval(updateGlobalTimer, 1000);
 
     </script>
