@@ -330,11 +330,11 @@ class OpenSiteQueue:
                         self.graph.log.info(f"{OpenSiteConstants.LOGGER_GREEN}{'='*60}{OpenSiteConstants.LOGGER_RESET}")
                         self.graph.log.info(f"{OpenSiteConstants.LOGGER_GREEN}{'*'*19} PROCESSING COMPLETE {'*'*20}{OpenSiteConstants.LOGGER_RESET}")
                         self.graph.log.info(f"{OpenSiteConstants.LOGGER_GREEN}{'='*60}{OpenSiteConstants.LOGGER_RESET}")
-                        break
+                        return True
                     else:
                         if unfinishednodes == len(unfinished):
                             self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unfinished")
-                            break
+                            return False
 
                         unfinishednodes = len(unfinished)
 

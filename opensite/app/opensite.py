@@ -110,6 +110,22 @@ class OpenSiteApplication:
         self.log.info("[purgeall] completed")
         return True
     
+    def show_success_message(self, outputformats):
+        """Gets final message text"""
+
+        final_message = f"""\n\033[1;34m{'='*60}\n**************** OPEN SITE ENERGY BUILD PROCESS COMPLETE **************{'='*60}\033[0m
+\nFinal layers created at:
+\n\033[1;94m{OpenSiteConstants.OUTPUT_FOLDER}\033[0m
+\n\nTo view latest constraint layers as map, enter:
+\n\033[1;94m./webview.sh\033[0m
+\n\n"""
+        
+        if 'qgis' in outputformats:
+            final_message += f"""GIS file created at:\n
+\033[1;94m{str(Path(OpenSiteConstants.OUTPUT_FOLDER) / OpenSiteConstants.OPENSITEENERGY_SHORTNAME)}.qgs\033[0m\n\n"""
+
+        print(final_message)
+
     def purgetileserver(self):
         """Purge all tileserver files"""
 
@@ -245,7 +261,8 @@ class OpenSiteApplication:
             with open(OpenSiteConstants.PROCESSING_CMD_FILE, 'w') as file: file.write(cli.get_command_line())
             if Path(OpenSiteConstants.PROCESSING_COMPLETE_FILE).exists(): Path(OpenSiteConstants.PROCESSING_COMPLETE_FILE).unlink()
             
-            queue.run()
+            if queue.run():
+                self.show_success_message(cli.get_outputformats())
 
             # Change state files in case running in server environment
             with open(OpenSiteConstants.PROCESSING_START_FILE, 'a', encoding='utf-8') as file: 

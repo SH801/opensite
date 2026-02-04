@@ -35,6 +35,18 @@ venv.bak
 *.swo
 .DS_Store
 
+# --- Terraform ---
+terraform/aws/.terraform.lock.hcl
+terraform/aws/.terraform.tfstate.lock.info
+terraform/aws/.terraform/
+terraform/aws/terraform.tfstate
+terraform/aws/terraform.tfstate.backup
+terraform/gcp/.terraform.lock.hcl
+terraform/gcp/.terraform.tfstate.lock.info
+terraform/gcp/.terraform/
+terraform/gcp/terraform.tfstate
+terraform/gcp/terraform.tfstate.backup
+
 tidy_away_move_back_when_advanced
 opensite.log
 PROCESSING
