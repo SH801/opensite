@@ -25,6 +25,17 @@
             overflow-y: auto; z-index: 1000; display: none; box-shadow: -5px 0 15px rgba(0,0,0,0.05);
         }
         
+        /* --- CONSOLE STYLES --- */
+        #console-panel {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 400px;
+            background: #121212; color: #d4d4d4; font-family: 'Consolas', monospace;
+            padding: 10px; overflow-y: auto; display: none; z-index: 1500;
+            border-top: 3px solid #333; box-sizing: border-box;
+        }
+        .log-line { font-size: 0.8rem; margin-bottom: 2px; border-bottom: 1px solid #1e1e1e; white-space: pre-wrap; }
+        .log-ts { color: #858585; margin-right: 10px; }
+        .btn-console { background: #34495e !important; color: white !important; border: none !important; }
+
         .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.85rem; }
         .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; border: 1px solid #999; }
         pre { background: #f8f8f8; padding: 10px; border-radius: 4px; font-size: 0.75rem; white-space: pre-wrap; }
@@ -52,6 +63,11 @@
             <div class="legend-item"><span class="dot" style="background: #ec0a0a;"></span> Failed</div>
         </div>
         <button onclick="network.fit()">Center View</button>
+        <button class="btn-console" onclick="toggleConsole()">Toggle Console Logs</button>
+    </div>
+
+    <div id="console-panel">
+        <div id="log-content"></div>
     </div>
 
     <div id="property-panel">
@@ -77,38 +93,18 @@
         let colorStep = 0;
         let serverStartTime = null;
         let finalDuration = null;
+        let lastLogIndex = 0;
 
-        // --- TIMER LOGIC ---
-        function updateGlobalTimer() {
-            if (!serverStartTime) return;
+        function toggleConsole() {
+            const panel = document.getElementById('console-panel');
+            const isHidden = window.getComputedStyle(panel).display === 'none';
+            
+            panel.style.display = isHidden ? 'block' : 'none';
 
-            const allNodes = nodes.get();
-            const isStillWorking = allNodes.some(n => n.raw.status === 'processing' || n.raw.status === 'unprocessed');
-
-            let displaySeconds;
-            if (finalDuration) {
-                displaySeconds = finalDuration;
-            } else {
-                displaySeconds = Math.max(0, Math.floor((Date.now() - serverStartTime) / 1000));
-            }
-
-            const hrs = Math.floor(displaySeconds / 3600);
-            const mins = Math.floor((displaySeconds % 3600) / 60);
-            const secs = displaySeconds % 60;
-
-            const formatted = (hrs > 0 ? hrs + ":" : "") + 
-                              mins.toString().padStart(2, '0') + ":" + 
-                              secs.toString().padStart(2, '0');
-
-            const timerElement = document.getElementById('timer-val');
-            timerElement.innerText = formatted;
-
-            // Handle completion
-            if (!isStillWorking && allNodes.length > 0 && !finalDuration) {
-                finalDuration = displaySeconds;
-                document.getElementById('total-time').style.display = 'block';
-                document.getElementById('total-time').querySelector('span').innerText = formatted;
-                timerElement.style.color = "#18bc9c";
+            if (isHidden) {
+                setTimeout(() => {
+                    panel.scrollTop = panel.scrollHeight;
+                }, 10);
             }
         }
 
@@ -127,7 +123,7 @@
         }
 
         function pulseProcessingNodes() {
-            colorStep += 0.12;
+            colorStep += 0.5;
             const factor = (Math.sin(colorStep) + 1) / 2; 
             const currentColor = lerpColor("#FFA500", "#FFFFFF", factor); // Orange to White pulse
             const processingNodes = nodes.get({ filter: (item) => item.raw && item.raw.status === 'processing' });
@@ -139,14 +135,41 @@
             if (updates.length > 0) nodes.update(updates);
         }
 
+        // --- TIMER LOGIC ---
+        function updateGlobalTimer() {
+            if (!serverStartTime) return;
+            const allNodes = nodes.get();
+            const isStillWorking = allNodes.some(n => n.raw.status === 'processing' || n.raw.status === 'unprocessed');
+
+            let displaySeconds = finalDuration ? finalDuration : Math.max(0, Math.floor((Date.now() - serverStartTime) / 1000));
+
+            const hrs = Math.floor(displaySeconds / 3600);
+            const mins = Math.floor((displaySeconds % 3600) / 60);
+            const secs = displaySeconds % 60;
+
+            const formatted = (hrs > 0 ? hrs + ":" : "") + 
+                              mins.toString().padStart(2, '0') + ":" + 
+                              secs.toString().padStart(2, '0');
+
+            const timerElement = document.getElementById('timer-val');
+            timerElement.innerText = formatted;
+
+            if (!isStillWorking && allNodes.length > 0 && !finalDuration) {
+                finalDuration = displaySeconds;
+                document.getElementById('total-time').style.display = 'block';
+                document.getElementById('total-time').querySelector('span').innerText = formatted;
+                timerElement.style.color = "#18bc9c";
+            }
+        }
+
         // --- DATA PARSING ---
         function parsePipelineData(node, nodesArray, edgesArray) {
             nodesArray.push({
                 id: node.urn,
                 label: node.title || node.name,
                 title: `Name: ${node.title}\nType: ${node.node_type}\nStatus: ${node.status.toUpperCase()}`,
-                color: { background: statusColors[node.status] || "#efefef", border: "#333" },
-                font: { size: 36, face: 'Tahoma' },
+                color: { background: statusColors[node.status] || "#efefef", border: "#BBB" },
+                font: { size: 40, face: 'Arial Narrow' },
                 raw: node 
             });
 
@@ -160,25 +183,46 @@
 
         async function updateGraph() {
             try {
-                const response = await fetch('/nodes');
+                const response = await fetch(`/nodes?last_index=${lastLogIndex}`);
                 const rawData = await response.json();
                 
-                // Sync start time from Python
+                // 1. Sync Timer
                 if (rawData.process_started) {
                     serverStartTime = new Date(rawData.process_started).getTime();
-                } else {
-                    serverStartTime = null;
-                    finalDuration = null;
-                    document.getElementById('timer-val').innerText = "00:00";
-                    document.getElementById('timer-val').style.color = "white";
-                    document.getElementById('total-time').style.display = 'none';
                 }
 
+                // 2. Handle Logs
+                if (rawData.logs && rawData.logs.length > 0) {
+                    const logContent = document.getElementById('log-content');
+                    const panel = document.getElementById('console-panel');
+
+                    rawData.logs.forEach(log => {
+                        const line = document.createElement('div');
+                        line.className = 'log-line';
+                        
+                        // Pick colors based on module names in your logs
+                        let msgColor = "#d4d4d4";
+                        if (log.msg.includes("OpenSiteDownloader")) msgColor = "#d88bf0";
+                        if (log.msg.includes("OpenSiteSpatial")) msgColor = "#ce9178";
+                        if (log.msg.includes("[amalgamate]")) msgColor = "#569cd6";
+                        if (log.msg.includes("[postprocess]")) msgColor = "#2d9c33";
+                        if (log.msg.includes("OpenSiteOutput")) msgColor = "#6078e0";
+                        if (log.msg.includes("OpenSitePostGIS")) msgColor = "#f5b547";
+
+                        line.innerHTML = `<span class="log-ts">${log.time}</span><span style="color:${msgColor}">${log.msg}</span>`;
+                        logContent.appendChild(line);
+                    });
+
+                    lastLogIndex = rawData.next_index;
+                    panel.scrollTop = panel.scrollHeight; // Auto-scroll
+                }
+
+                // 3. Update Graph
                 const tempNodes = [];
                 const tempEdges = [];
                 if (rawData.children && rawData.children.length > 0) {
                     rawData.children.forEach(branch => parsePipelineData(branch, tempNodes, tempEdges));
-                } else {
+                } else if (rawData.name) {
                     parsePipelineData(rawData, tempNodes, tempEdges);
                 }
 
@@ -188,18 +232,19 @@
             } catch (error) { console.error("API Error:", error); }
         }
 
-        // --- NETWORK CONFIG ---
         const options = {
-            nodes: { shape: 'dot', size: 200 },
-            edges: { smooth: false, width: 2, color: { color: '#BBB' }, arrows: { to: { enabled: true, scaleFactor: 10 } } },
+            nodes: { shape: 'dot', size: 300 },
+            edges: { smooth: false, width: 2, color: { 
+                color: '#D3D3D3', 
+                highlight: '#848484', 
+                hover: '#848484' 
+            }, arrows: { to: { enabled: true, scaleFactor: 10 } } },
             layout: { hierarchical: { enabled: true, direction: "UD", sortMethod: "directed", levelSeparation: 3000, nodeSpacing: 900, treeSpacing: 800 } },
             physics: { enabled: false },
             interaction: { dragNodes: true, hover: true }
         };
 
         const network = new vis.Network(container, { nodes, edges }, options);
-
-        network.once("stabilizationIterationsDone", () => network.setOptions({ layout: { hierarchical: false } }));
         network.once("afterDrawing", () => setTimeout(() => network.setOptions({ layout: { hierarchical: false } }), 1000));
 
         network.on("click", (params) => {
@@ -212,10 +257,9 @@
             }
         });
 
-        // Initialize
         updateGraph().then(() => setTimeout(() => network.fit(), 500));
         setInterval(updateGraph, 5000);
-        setInterval(pulseProcessingNodes, 20);
+        setInterval(pulseProcessingNodes, 500);
         setInterval(updateGlobalTimer, 1000);
 
     </script>

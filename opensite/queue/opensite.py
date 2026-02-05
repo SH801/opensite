@@ -61,9 +61,29 @@ class OpenSiteQueue:
             return open(str(OpenSiteConstants.PROCESSING_WEB_FOLDER / "index.html"), 'r').read()
 
         @app.get("/nodes")
-        async def get_nodes():
+        async def get_nodes(last_index: int = 0):
+            new_logs = []
+            current_index = last_index
             data = self.graph.to_json()
             data['process_started'] = self.process_started
+            
+            if os.path.exists(OpenSiteConstants.LOGGING_FILE):
+                with open(OpenSiteConstants.LOGGING_FILE, "r") as f:
+                    # Skip lines we've already seen
+                    lines = f.readlines()
+                    new_lines = lines[last_index:]
+                    
+                    for line in new_lines:
+                        parts = line.split(" ", 1)
+                        timestamp = parts[0] if len(parts) > 0 else ""
+                        content = parts[1] if len(parts) > 1 else line
+                        
+                        new_logs.append({"time": timestamp, "msg": content.strip()})
+                    
+                    current_index = len(lines)
+            data['logs'] = new_logs
+            data['next_index'] = current_index
+
             return data
 
         @app.get("/health")
@@ -165,6 +185,25 @@ class OpenSiteQueue:
 
         self.logger.info("All database table sizes fetched.")
         
+    def set_node_status(self, node, status):
+        """
+        Adds necessary node log entries depending on status
+        """
+
+        node.status = status
+        log_keys = {k for d in node.log for k in d.keys()}
+        if status == 'processing':
+            if 'started' not in log_keys:
+                node.log.append({'started': datetime.now(timezone.utc).isoformat()})
+        if status == 'processed':
+            if 'completed' not in log_keys:
+                node.log.append({'completed': datetime.now(timezone.utc).isoformat()})
+            # Add duration - we assume started is [0] and completed is [1]
+            if 'started' in log_keys:
+                node.log.append({'duration': str(datetime.fromisoformat(node.log[1]['completed']) - datetime.fromisoformat(node.log[0]['started']))})
+
+        return node
+
     def sync_global_status(self, node_urn: str, status: str):
         """
         Updates target node and all its global 'clones' to specified status
@@ -173,8 +212,8 @@ class OpenSiteQueue:
         g_urn = node.global_urn
 
         # Update the specific node
-        node.status = status
-
+        node = self.set_node_status(node, status)
+        
         # Sync all clones sharing the same global_urn
         if g_urn:
             clones = self.graph.find_nodes_by_props({'global_urn': g_urn})
@@ -183,7 +222,7 @@ class OpenSiteQueue:
                 if c_dict['urn'] == node_urn:
                     continue
                 c_node = self.graph.find_node_by_urn(c_dict['urn'])
-                c_node.status = status
+                c_node = self.set_node_status(c_node, status)
 
     @staticmethod
     def process_cpu_task(args):
@@ -349,10 +388,10 @@ class OpenSiteQueue:
                 for node in new_nodes:
                     # If runnable node has no action, automatically process it
                     if not node.action: 
-                        node.status = 'processed'
+                        node = self.set_node_status(node, 'processed')
                     else:
-                        node.status = 'processing'
-                        if node.global_urn: self.sync_global_status(node.urn, node.status)
+                        node = self.set_node_status(node, 'processing')
+                    if node.global_urn: self.sync_global_status(node.urn, node.status)
 
                     self.graph.generate_graph_preview()
         

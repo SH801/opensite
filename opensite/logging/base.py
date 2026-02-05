@@ -22,7 +22,7 @@ class ColorFormatter(logging.Formatter):
         color = self.LEVEL_COLORS.get(record.levelno, Style.RESET_ALL)
         log_fmt = f"{color}{self.FORMAT}{Style.RESET_ALL}"
         # We create a temporary formatter with the colorized string
-        formatter = logging.Formatter(log_fmt, datefmt='%H:%M:%S')
+        formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
         return formatter.format(record)
 
 class LoggingBase:
@@ -41,7 +41,7 @@ class LoggingBase:
             
             # File handler - clean text, no colors
             # This ensures opensite.log remains human-readable
-            file_handler = logging.FileHandler('opensite.log')
+            file_handler = logging.FileHandler(OpenSiteConstants.LOGGING_FILE)
             clean_formatter = logging.Formatter(
                 '%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'

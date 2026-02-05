@@ -23,6 +23,9 @@ class OpenSiteConstants:
     # Default logging level for entire application
     LOGGING_LEVEL               = logging.DEBUG
 
+    # Logging file
+    LOGGING_FILE                = f"{OPENSITEENERGY_SHORTNAME}.log"
+    
     # How many seconds to update console
     DOWNLOAD_INTERVAL_TIME      = 10
 
