@@ -115,7 +115,7 @@ echo '********* STAGE 4: Installing Open Wind Energy source code **********' >> 
 echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo and setting up admin site...</pre></body></html>' | sudo tee /var/www/html/index.html
 sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
-git clone https://github.com/SH801/opensite.git
+git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
 sudo apt install virtualenv pip -y | tee -a /usr/src/opensiteenergy/log.txt
 virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/opensiteenergy/log.txt
 source /usr/src/opensiteenergy/venv/bin/activate
@@ -131,8 +131,6 @@ echo 'SERVER_BUILD=True' >> /usr/src/opensiteenergy/.env
 mkdir /usr/src/opensiteenergy/build-cli
 mkdir /usr/src/opensiteenergy/build-cli/output
 mkdir /usr/src/opensiteenergy/build-cli/tileserver
-git clone https://github.com/open-wind/openmaptiles-fonts.git
-mv openmaptiles-fonts/fonts /usr/src/opensiteenergy/build-cli/tileserver/fonts
 echo "./opensiteenergy-build-ubuntu.sh" >> /usr/src/opensiteenergy/PROCESSING
 sudo chown -R www-data:www-data /usr/src/opensiteenergy
 sudo sed -i "s/.*TILESERVER_URL.*/    TILESERVER_URL\=\/tiles/" /usr/src/opensiteenergy/.env
