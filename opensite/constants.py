@@ -18,7 +18,7 @@ class OpenSiteConstants:
     WORKING_FOLDER              = str(Path(__file__).absolute().parent) + '/'
 
     # Redirect ogr2ogr warnings to log file
-    os.environ['CPL_LOG']       = WORKING_FOLDER + 'log-ogr2ogr.txt'
+    os.environ['CPL_LOG']       = WORKING_FOLDER + 'log-ogr2ogr.log'
 
     # Default logging level for entire application
     LOGGING_LEVEL               = logging.DEBUG

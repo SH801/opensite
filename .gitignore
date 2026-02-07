@@ -47,11 +47,10 @@ terraform/gcp/.terraform/
 terraform/gcp/terraform.tfstate
 terraform/gcp/terraform.tfstate.backup
 
+# --- Files created during running ---
+*.log
 graph.html
-tidy_away_move_back_when_advanced
-opensite.log
 PROCESSING
 PROCESSINGCMD
 PROCESSINGSTART
 PROCESSINGCOMPLETE
-log-ogr2ogr.txt
