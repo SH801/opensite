@@ -84,7 +84,7 @@ echo '********* STAGE 2: Installing Apache2 **********' >> /usr/src/opensiteener
 
 mkdir /var/www
 mkdir /var/www/html
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Beginning installation of Open Wind Energy...</pre></body></html>' | sudo tee /var/www/html/index.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Beginning installation of Open Site Energy...</pre></body></html>' | sudo tee /var/www/html/index.html
 sudo apt install apache2 libapache2-mod-wsgi-py3 -y
 sudo apt install certbot python3-certbot-apache -y
 sudo a2enmod headers
@@ -110,7 +110,7 @@ echo '********* STAGE 3: Finished installing git **********' >> /usr/src/opensit
 # Install Open Site Energy so log file in right place
 
 echo '' >> /usr/src/opensiteenergy/log.txt
-echo '********* STAGE 4: Installing Open Wind Energy source code **********' >> /usr/src/opensiteenergy/log.txt
+echo '********* STAGE 4: Installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/log.txt
 
 echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo and setting up admin site...</pre></body></html>' | sudo tee /var/www/html/index.html
 sudo rm -R /usr/src/opensiteenergy
@@ -154,7 +154,7 @@ WantedBy=multi-user.target
 sudo systemctl enable opensiteenergy-servicesmanager.service
 sudo systemctl start opensiteenergy-servicesmanager.service
 
-echo '********* STAGE 4: Finished installing Open Wind Energy source code **********' >> /usr/src/opensiteenergy/log.txt
+echo '********* STAGE 4: Finished installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/log.txt
 
 
 echo '********* STAGE 5: Installing nodejs, npm and frontail **********' >> /usr/src/opensiteenergy/log.txt
@@ -336,7 +336,7 @@ echo '********* STAGE 10: Finished installing PostGIS  **********' >> /usr/src/o
 # Install Open Site Energy application
 
 echo '' >> /usr/src/opensiteenergy/log.txt
-echo '********* STAGE 12: Installing Open Wind Energy **********' >> /usr/src/opensiteenergy/log.txt
+echo '********* STAGE 12: Installing Open Site Energy **********' >> /usr/src/opensiteenergy/log.txt
 cd /usr/src/opensiteenergy
 pip3 install gdal==`gdal-config --version` | tee -a /usr/src/opensiteenergy/log.txt
 pip3 install -r requirements.txt | tee -a /usr/src/opensiteenergy/log.txt
@@ -373,7 +373,7 @@ fi
 
 echo 'FINISHED' >> /usr/src/opensiteenergy/INSTALLCOMPLETE
 
-echo '********* STAGE 12: Finished installing Open Wind Energy **********' >> /usr/src/opensiteenergy/log.txt
+echo '********* STAGE 12: Finished installing Open Site Energy **********' >> /usr/src/opensiteenergy/log.txt
 
 echo '' >> /usr/src/opensiteenergy/log.txt
 echo '===================================================' >> /usr/src/opensiteenergy/log.txt
