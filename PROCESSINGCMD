@@ -1,1 +1,1 @@
-./build.sh test/solar.yml --purgedb
+./build.sh test/solar.yml --overwrite

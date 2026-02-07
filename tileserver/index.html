@@ -387,10 +387,12 @@ function activateBranch(config, branchcode) {
             });
 
             if (isParent) {
-                const childrenContainer = document.createElement('div');
-                childrenContainer.className = 'children-container';
-                renderLayers(layer.children, childrenContainer);
-                item.appendChild(childrenContainer);
+                if (layer.children.length > 1) {
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = 'children-container';
+                    renderLayers(layer.children, childrenContainer);
+                    item.appendChild(childrenContainer);
+                }
             }
 
             parentElement.appendChild(item);
