@@ -10,7 +10,7 @@
 #
 # MIT License
 #
-# Copyright (c) Stefan Haselwimmer, OpenWind.energy, 2025
+# Copyright (c) Stefan Haselwimmer, OpenSite.energy, 2026
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -387,7 +387,7 @@ def files():
 
     if not isLoggedIn(): return redirect(url_for('login'))
 
-    output_files_folder = join(BUILD_FOLDER, 'output')
+    output_files_folder = join(BUILD_FOLDER, 'output', 'layers')
     if not isdir(output_files_folder): 
         files=[]
     else:

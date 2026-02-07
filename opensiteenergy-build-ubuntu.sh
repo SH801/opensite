@@ -157,7 +157,7 @@ sudo systemctl start opensiteenergy-servicesmanager.service
 echo '********* STAGE 4: Finished installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 
-echo '********* STAGE 5: Installing nodejs, npm and frontail **********' >> /usr/src/opensiteenergy/opensiteenergy.log
+echo '********* STAGE 5: Installing nodejs and frontail **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing nodejs, npm and frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.html
 

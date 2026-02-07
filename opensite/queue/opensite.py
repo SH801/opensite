@@ -402,7 +402,7 @@ class OpenSiteQueue:
                     return self.shutdownstatus
 
                 # 1. Get nodes that are ready to run (Dependencies met)
-                ready_nodes = self.get_runnable_nodes(actions=None, checksizes=False)
+                ready_nodes = self.get_runnable_nodes(actions=None, checksizes=True)
                 
                 # Filter out nodes that are already currently in flight
                 new_nodes = [n for n in ready_nodes if n.urn not in active_tasks.values()]
