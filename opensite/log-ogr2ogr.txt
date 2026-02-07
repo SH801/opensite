@@ -1,2 +1,4 @@
-Warning 6: driver GML does not support open option GML_SKIP_RESOLVE_ELEMS
-ERROR 1: Failed to connect to hh-etl-d01.lnx.lr.net port 8080 after 75002 ms: Couldn't connect to server
+ERROR 1: no such column: geom
+ERROR 1: stream.get_next() failed
+ERROR 1: Terminating translation prematurely after failed
+translation of layer merged_data (use -skipfailures to skip errors)
