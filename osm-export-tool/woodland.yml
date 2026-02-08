@@ -1,0 +1,9 @@
+woodland:
+  types:
+    - polygons
+  select:
+    - name
+    - landuse
+    - natural
+  where:
+    - landuse = 'forest' OR natural = 'wood'

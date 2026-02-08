@@ -6,29 +6,42 @@
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; background: #ffffff; overflow: hidden; }
-        #network-container { width: 100vw; height: 100vh; }
+        /* #network-container { width: 100vw; height: 100vh; } */
         
         #ui-overlay {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
+            position: fixed; top: 100px; right: 40px; z-index: 10;
             background: rgba(255, 255, 255, 0.9); padding: 15px;
-            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 260px;
+            height: auto;
+            background-color: #EEE;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(188, 188, 188, 1); width: 260px;
         }
 
         #processing-monitor {
-            position: absolute; bottom: 20px; left: 0px; z-index: 10;
-            background: rgba(255, 255, 255, 0.9); padding: 15px;
-            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 260px;
-            margin:20px; padding: 15px; 
-            width:calc(100vw - 70px);
+            position: fixed; 
+            bottom: 20px; 
+            left: 50%;
+            transform: translateX(-50%);    
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9); 
+            padding: 15px;
+            border-radius: 8px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            min-width: 260px;
+            width: auto;
+            max-width: 90vw;
             max-height: 200px;
-            overflow: auto;
-            overflow-y: scroll;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
 
+        #network-container {
+            position: absolute; top: 0px;
+            width: 100vw; height: 100vh;
         }
 
         #timer-container {
-            margin-bottom: 15px; padding: 12px; background: #2c3e50; 
-            color: white; border-radius: 6px; text-align: center;
+            margin-top:15px; margin-bottom: 15px; padding: 6px; background: #FFF; 
+            color: black; border-radius: 10px; text-align: center;
         }
 
         #property-panel {
@@ -53,7 +66,7 @@
         .count-val { font-weight: bold; margin-left: 4px; color: #2c3e50; }
 
         pre { background: #f8f8f8; padding: 10px; border-radius: 4px; font-size: 0.75rem; white-space: pre-wrap; }
-        button { cursor: pointer; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: #fff; width: 100%; margin-top: 10px; }
+        button { font-size: 0.9em;cursor: pointer; padding: 8px; border-radius: 9px; border: 1px solid #ccc; background: #fff; width: 100%; margin-top: 10px; }
         button:hover { background: #f0f0f0; }
 
         /* TOOLTIP: Plenty of space, standard legible font */
@@ -81,9 +94,9 @@
         <h2 style="margin:0 0 10px 0; font-size: 1.1rem;">Data Processing Monitor</h2>
         
         <div id="timer-container">
-            <div style="font-size: 0.65rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px;">Elapsed Time</div>
+            <div style="font-size: 0.65rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px;margin-bottom:3px;">Elapsed Time</div>
             <div id="timer-val" style="font-size: 1.6rem; font-weight: bold; font-family: 'Courier New', monospace;">00:00</div>
-            <div id="total-time" style="font-size: 0.75rem; color: #18bc9c; margin-top: 4px; display: none; font-weight: bold;">Final: <span></span></div>
+            <div id="total-time" style="font-size: 0.75rem; color: #0b7a39; margin-top: 4px; display: none; font-weight: bold;">Final: <span></span></div>
         </div>
 
         <div id="last-sync" style="font-size: 0.7rem; color: #888; margin-bottom: 12px;">Waiting for data...</div>
@@ -95,7 +108,7 @@
             <div class="legend-item"><span class="dot" style="background: #ec0a0a;"></span> Failed <span id="count-failed" class="count-val">(0)</span></div>
         </div>
         <button onclick="network.fit()">Center View</button>
-        <button class="btn-console" onclick="toggleConsole()">Toggle Console Logs</button>
+        <button onclick="toggleConsole()">Toggle Console Logs</button>
 
     </div>
 
@@ -104,7 +117,7 @@
     </div>
 
     <div id="processing-monitor">
-        <h4 style="margin-top: 0; color: #3498db;">Active Processes</h4>
+        <h4 style="margin-top: 0; margin-bottom: 5px;font-size: 1.1rem;width:100%;text-align: center;">Active Processes</h4>
         <div id="active-node-list">
             <p style="color: #888; font-style: italic;">No active nodes...</p>
         </div>
@@ -173,8 +186,13 @@
                 finalDuration = displaySeconds;
                 document.getElementById('total-time').style.display = 'block';
                 document.getElementById('total-time').querySelector('span').innerText = formatted;
-                timerElement.style.color = "#18bc9c";
+                timerElement.style.color = "#0b7a39";
+                timerElement.style.fontWeight = '800';
             }
+        }
+
+        function stripAnsi(text) {
+            return text.replace(/\u001b\[[0-9;]*[mK]/g, '');
         }
 
         function parsePipelineData(node, nodesArray, edgesArray) {
@@ -225,37 +243,41 @@
 
         function getActiveNodeTimers(nodes) {
             const now = new Date();
+            const uniqueNodes = new Map();
 
-            return nodes
+            nodes
                 .filter(node => node.raw.status === 'processing')
-                .map(node => {
-                    const startEntry = [...node.raw.log].reverse().find(entry => {
-                        return entry.hasOwnProperty('started');
-                    });
-                    let elapsedStr = "Starting...";
-                    let seconds = 0;
-
-                    if (startEntry) {
-                        const timestampValue = startEntry.started; 
-                        const startTime = new Date(timestampValue);
-                        const diff = Math.floor((now - startTime) / 1000); 
-                        const h = Math.floor(diff / 3600);
-                        const m = Math.floor((diff % 3600) / 60);
-                        const s = diff % 60;
+                .forEach(node => {
+                    const urn = node.raw.global_urn || node.raw.urn; // Use global_urn as key
+                    
+                    if (!uniqueNodes.has(urn)) {
+                        const startEntry = [...node.raw.log].reverse().find(entry => entry.hasOwnProperty('started'));
                         
-                        // Format as HH:MM:SS
-                        elapsedStr = [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
-                        seconds = diff;
-                    }
+                        let elapsedStr = "Starting...";
+                        let seconds = 0;
 
-                    return {
-                        id: node.raw.urn,
-                        name: node.raw.name,
-                        elapsed: elapsedStr,
-                        rawSeconds: seconds
-                    };
-                })
-                .sort((a, b) => b.rawSeconds - a.rawSeconds); // Sort longest running first
+                        if (startEntry) {
+                            const startTime = new Date(startEntry.started);
+                            const diff = Math.floor((now - startTime) / 1000);
+                            const h = Math.floor(diff / 3600);
+                            const m = Math.floor((diff % 3600) / 60);
+                            const s = diff % 60;
+                            elapsedStr = [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+                            seconds = diff;
+                        }
+
+                        uniqueNodes.set(urn, {
+                            id: node.raw.urn,
+                            name: node.raw.name,
+                            elapsed: elapsedStr,
+                            rawSeconds: seconds
+                        });
+                    }
+                });
+
+            // Convert Map back to array and sort
+            return Array.from(uniqueNodes.values())
+                .sort((a, b) => b.rawSeconds - a.rawSeconds);
         }
 
         function updateMonitorUI(nodes) {
@@ -264,21 +286,86 @@
 
             if (activeNodes.length === 0) {
                 container.innerHTML = '<p style="color: #888; font-style: italic;">No active nodes...</p>';
+                document.getElementById('processing-monitor').style.display = 'none';
                 return;
+            } else {
+                document.getElementById('processing-monitor').style.display = 'block';
             }
 
             container.innerHTML = activeNodes.map(node => `
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding: 8px 0;">
+            <a href="#" style="text-decoration:none;" onclick="zoomToNode('${node.id}'); return false;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid #DDD; padding: 4px 0;font-size: 0.9em;">
                     <div>
-                        <span style="font-weight: bold;">${node.name}</span>
-                        <br/>
-                        <small style="color: #aaa;">ID: ${node.id}</small>
+                        <span style="margin-right:20px;">${node.name}</span>
                     </div>
-                    <div style="font-family: monospace; color: #2ecc71; font-size: 1.2em;">
+                    <div style="font-family: monospace;">
                         ${node.elapsed}
                     </div>
                 </div>
+            </a>
             `).join('');
+        }
+
+        function zoomToNode(nodeId) {
+            // 1. Try the direct DataSet lookup first
+            let target = nodes.get(nodeId);
+
+            // 2. If null, crawl every node in the DataSet to find a URN match
+            if (!target) {
+                const allData = nodes.get();
+                target = allData.find(n => 
+                    n.id == nodeId || 
+                    (n.raw && n.raw.urn == nodeId) || 
+                    (n.raw && n.raw.global_urn == nodeId)
+                );
+            }
+
+            if (target) {
+                // We found it! Use the actual ID vis-network recognizes
+                const actualId = target.id;
+                
+                network.focus(actualId, {
+                    scale: 0.4,
+                    animation: { duration: 1000, easingFunction: "easeInOutQuad" }
+                });
+
+                network.selectNodes([actualId]);
+                
+                // Open the panel
+                const metadata = { ...target.raw };
+                delete metadata.children;
+                document.getElementById('property-panel').style.display = 'block';
+                document.getElementById('prop-title').innerText = target.label.replace(/\n/g, ' ');
+                document.getElementById('prop-content').innerText = JSON.stringify(metadata, null, 2);
+            } else {
+                // This will tell us EXACTLY what's wrong in the console
+                console.error("ZOOM FAIL: Requested ID:", nodeId);
+                console.log("FIRST NODE IN DATASET:", nodes.get()[0]);
+            }
+        }
+
+        function getAnsiColor(text) {
+            // Standard ANSI to Hex mapping (Bright variants for dark background)
+            const colorMap = {
+                '30': '#4f4f4f', // Black (Grey)
+                '31': '#FF0000', // Red
+                '32': '#00FF00', // Green
+                '33': '#FFFF00', // Yellow
+                '34': '#0000FF', // Blue
+                '35': '#FF00FF', // Magenta
+                '36': '#00FFFF', // Cyan
+                '37': '#ffffff', // White
+                '90': '#858585', // Bright Black
+                '91': '#ff8787', // Bright Red
+                '92': '#b2f2bb'  // Bright Green
+            };
+
+            // Find the first color code in the string, e.g., [32m
+            const match = text.match(/\u001b\[(\d+)(?:;\d+)*m/);
+            if (match && colorMap[match[1]]) {
+                return colorMap[match[1]];
+            }
+            return null; // No ANSI color found
         }
 
         async function updateGraph() {
@@ -294,7 +381,10 @@
                     rawData.logs.forEach(log => {
                         const line = document.createElement('div');
                         line.className = 'log-line';
+                        const detectAnsiColor = getAnsiColor(log.msg);
+                        const cleanMsg = stripAnsi(log.msg);
                         let msgColor = "#d4d4d4";
+                        if (detectAnsiColor) msgColor = detectAnsiColor;
                         if (log.msg.includes("OpenSiteDownloader")) msgColor = "#d88bf0";
                         if (log.msg.includes("OpenSiteSpatial")) msgColor = "#ce9178";
                         if (log.msg.includes("[amalgamate]")) msgColor = "#569cd6";
@@ -304,7 +394,7 @@
                         if (log.msg.includes("OpenSiteRunner")) msgColor = "#5e5adb";
                         if (log.msg.includes("ERROR")) msgColor = "#de0d0d";
 
-                        line.innerHTML = `<span class="log-ts">${log.time}</span><span style="color:${msgColor}">${log.msg}</span>`;
+                        line.innerHTML = `<span class="log-ts">${log.time}</span><span style="color:${msgColor}">${cleanMsg}</span>`;
                         logContent.appendChild(line);
                     });
                     lastLogIndex = rawData.next_index;
@@ -341,7 +431,7 @@
                     multi: true
                 },
                 widthConstraint: {
-                    maximum: 900
+                    maximum: 1000
                 } 
             },
             edges: { smooth: false, width: 2, color: { color: '#D3D3D3', highlight: '#848484', hover: '#848484' }, arrows: { to: { enabled: true, scaleFactor: 20 } } },

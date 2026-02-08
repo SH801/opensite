@@ -19,6 +19,7 @@ class OpenSiteCLI(BaseCLI):
         self.purgeall = False
         self.overwrite = False
         self.graphonly = False
+        self.snapgrid = None
         # Load and filter immediately
         self._load_and_filter_defaults()
         self._incoporate_cli_switched()
@@ -35,6 +36,7 @@ class OpenSiteCLI(BaseCLI):
         self.parser.add_argument('--clip', type=str, help="Name of area to clip data to, e.g., 'Surrey'. For multiple clipping areas, separate with semicolon, eg. --clip=\"East Sussex;Devon\"")
         self.parser.add_argument('--overwrite', action='store_true', help="Reexports all output files, overwriting files already created")
         self.parser.add_argument('--graphonly', action='store_true', help="Generate build graph but don't run build")
+        self.parser.add_argument('--snapgrid', type=float, help="Snaps all imported datasets to grid of size [snapgrid] metres")
 
     def get_command_line(self):
         """
@@ -74,6 +76,7 @@ class OpenSiteCLI(BaseCLI):
         """Adds flags for the filtered simple variables."""
         for key, value in self.defaults.items():
             help = f"Override {key} (Default: {value})"
+            if key == 'snapgrid': continue
             if key == 'outputformats': 
                 help =  f"Set output format(s) from "\
                         f"'gpkg', 'shp', 'geojson', "\
@@ -132,6 +135,10 @@ class OpenSiteCLI(BaseCLI):
         """Gets status of --buildonly CLI switch"""
         return self.graphonly
 
+    def get_snapgrid(self):
+        """Gets value of snapgrid"""
+        return self.snapgrid
+
     def _incoporate_cli_switched(self):
         """Standard execution flow."""
         self.add_standard_args()
@@ -178,6 +185,13 @@ class OpenSiteCLI(BaseCLI):
             clip_items = sorted(self.args.clip.split(";"))
             clip_items = [clip_item.lower() for clip_item in clip_items]
             self.clip = clip_items
+
+        # Set snap grid to value provided in CLI or if not provided, default value if it exists
+        if self.args.snapgrid:
+            self.snapgrid = self.args.snapgrid
+        else:
+            if self.defaults['snapgrid']:
+                self.snapgrid = self.defaults['snapgrid']
 
         # Capture the final state of the simple variables
         overrides = {}

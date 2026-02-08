@@ -212,6 +212,7 @@ class OpenSiteApplication:
         graph = OpenSiteGraph(  cli.get_overrides(), \
                                 cli.get_outputformats(), \
                                 cli.get_clip(), \
+                                cli.get_snapgrid(), \
                                 log_level=self.log_level)
         graph.add_yamls(site_ymls)
         graph.update_metadata(ckan)

@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 from pyproj import CRS
+from psycopg2 import sql, Error
 from opensite.processing.base import ProcessBase
 from opensite.constants import OpenSiteConstants
 from opensite.logging.opensite import OpenSiteLogger
@@ -226,6 +227,19 @@ class OpenSiteImporter(ProcessBase):
             subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             postgis = OpenSitePostGIS()
+
+            # If CKAN dataset has extra attribute 'preprocess' = 'closed_lines_to_polygons' then 
+            # custom_properties['preprocess'] == 'closed_lines_to_polygons' and perform extra processing
+            # to convert closed lines to polygons. This is typically required for some solar farms
+            if 'preprocess' in self.node.custom_properties:
+                if self.node.custom_properties['preprocess'] == 'closed_lines_to_polygons':
+                    self.log.info(f"[{self.node.name}] Dataset has custom attribute 'preprocess' = 'closed_lines_to_polygons' so converting closed lines to polygons")
+                    dbparams = {'table': sql.Identifier(self.node.output)}
+                    postgis.execute_query(sql.SQL("""
+                    UPDATE {table} SET geom = ST_CollectionExtract(ST_MakeValid(ST_BuildArea(geom)), 3)
+                    WHERE ST_GeometryType(geom) LIKE '%LineString%' AND ST_IsClosed(geom)""").format(**dbparams))
+                    self.log.info(f"[{self.node.name}] Converting closed lines to polygons: COMPLETED")
+
             postgis.add_table_comment(self.node.output, self.node.name)
 
             # We don't track internal tables in registry so if it's one, return True

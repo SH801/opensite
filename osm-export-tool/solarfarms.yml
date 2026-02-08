@@ -1,0 +1,13 @@
+solar_farms:
+  types:
+    - points
+    - lines
+    - polygons
+  select:
+    - name
+    - power
+    - plant:source
+  where:
+    - power = 'plant' AND plant:source = 'solar'
+
+

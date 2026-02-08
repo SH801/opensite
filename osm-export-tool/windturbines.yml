@@ -1,0 +1,8 @@
+wind_turbines:
+  types:
+    - points
+  select:
+    - name
+    - generator:source
+  where:
+    - generator:source = 'wind'

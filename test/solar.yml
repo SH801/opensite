@@ -88,7 +88,12 @@ structure:
   #   - national-parks--england
   #   - national-parks--scotland
   #   - national-parks--wales
-  # other-technical-constraints: 
+  other-technical-constraints: 
+    # - woodland--uk
+    - wind-turbines--uk
+    - solar-farms--uk
+    - other-energy-plants--uk
+    # - coastline--uk
   #   - bridleways--uk
   #   - inland-waters--uk
   #   - pipelines--uk
@@ -99,12 +104,10 @@ structure:
   # separation-distance-from-residential-properties:
   #   - residential-buildings-os--gb
   #   - residential-buildings-osm--uk
-  # test:
+  # land-properties:
   #   - solar-slope-too-steep--uk
-  land-properties:
-    - solar-slope-too-steep--uk
-    - solar-land-parcels-too-small--england-wales
-    - solar-land-parcels-too-small--scotland
+  #   - solar-land-parcels-too-small--england-wales
+  #   - solar-land-parcels-too-small--scotland
 
 buffers: 
   civilian-airports--uk:
@@ -117,6 +120,10 @@ buffers:
     500
   listed-buildings--wales: 
     500
+  coastline--uk:
+    50
+  wind-turbines--uk:
+    10
   bridleways--uk:
     20
   power-lines--uk:

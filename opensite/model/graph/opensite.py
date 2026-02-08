@@ -24,7 +24,7 @@ class OpenSiteGraph(Graph):
     TABLENAME_BASE          = OpenSiteConstants.DATABASE_BASE
     TREE_BRANCH_PROPERTIES  = OpenSiteConstants.TREE_BRANCH_PROPERTIES
 
-    def __init__(self, overrides=None, outputformats=None, clip=None, log_level=logging.INFO):
+    def __init__(self, overrides=None, outputformats=None, clip=None, snapgrid=None, log_level=logging.INFO):
         super().__init__(overrides)
 
         self.log = OpenSiteLogger("OpenSiteGraph", log_level)
@@ -36,6 +36,8 @@ class OpenSiteGraph(Graph):
         # clip is special case as will be absent in defaults.yml 
         # so will not be automically added to self._overrides
         if clip: self._overrides['clip'] = clip
+
+        self.snapgrid = snapgrid
 
         self.log.info("Graph initialized and ready.")
         
@@ -492,6 +494,9 @@ class OpenSiteGraph(Graph):
                     for item in meta['extras']:
                         if item['key'].startswith('FILTER:'):
                             node.custom_properties['filter'] = {'field': item['key'][len('FILTER:'):], 'values': item['value'].split(';')}
+                        if item['key'] in ['preprocess']:
+                            node.custom_properties['preprocess'] = item['value']
+
                 matches += 1
             
             if hasattr(node, 'children'):
@@ -561,6 +566,9 @@ class OpenSiteGraph(Graph):
 
         # Add global urns across nodes that share same output
         self.add_global_urns()
+
+        # Add 'Import - ' prefix to all import nodes now nodes derived from it have been created
+        self.add_informative_prefixes()
 
         # Update database registry with new nodes
         self.register_to_database()
@@ -681,7 +689,7 @@ class OpenSiteGraph(Graph):
             input_url = getattr(node, 'input', '')
             if isinstance(input_url, str) and input_url.startswith('http'):
                 
-                node.action = 'import'
+                node.action = "import"
                 node_format = getattr(node, 'format', 'Unknown')
                 node_branch = node.custom_properties['branch']
                 extension = OpenSiteConstants.CKAN_FILE_EXTENSIONS.get(node_format, 'ERROR')
@@ -707,7 +715,6 @@ class OpenSiteGraph(Graph):
 
                 # 4. Re-wire the Parent
                 node.input = download_node.output
-                
                 if not hasattr(node, 'children'):
                     node.children = []
                 node.children.append(download_node)
@@ -994,6 +1001,8 @@ class OpenSiteGraph(Graph):
 
             preprocess_node.output=self.get_output(preprocess_node)
             preprocess_node.custom_properties['branch'] = target_branch
+
+            if self.snapgrid: preprocess_node.custom_properties['snapgrid'] = self.snapgrid
 
             self.insert_parent(target_node, preprocess_node)
 
@@ -1469,3 +1478,28 @@ class OpenSiteGraph(Graph):
                 for node in shared_nodes:
                     node.global_urn = global_urn
 
+    def add_informative_prefixes(self):
+        """
+        Add 'Import -' and 'Amalgamate - ' prefixes to all relevant nodes to aid with legibility
+        Note: We do this at very end to prevent the prefix being added to derived nodes like buffer, etc
+        """
+
+        self.log.info("Adding import prefix to all import nodes")
+
+        import_node_dicts = self.find_nodes_by_props({
+            'action': 'import'
+        })
+                
+        for node_dict in import_node_dicts: 
+            node = self.find_node_by_urn(node_dict['urn'])
+            node.title = f"Import - {node.title}"
+
+        self.log.info("Adding amalgamate prefix to all amalgamate nodes")
+
+        amalgamate_node_dicts = self.find_nodes_by_props({
+            'action': 'amalgamate'
+        })
+                
+        for node_dict in amalgamate_node_dicts: 
+            node = self.find_node_by_urn(node_dict['urn'])
+            node.title = f"Amalgamate - {node.title}"

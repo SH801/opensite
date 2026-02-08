@@ -13,6 +13,9 @@
 
     <title>Open Site Energy Server - {% block title %}{{ title }}{% endblock title %}</title>
 
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@latest/dist/jsoneditor.min.js"></script>
+
     <script src="{{ url_for('static', filename='js/slimselect.min.js') }}"></script>
     <link href="{{ url_for('static', filename='css/slimselect.css') }}" rel="stylesheet"></link>
 
@@ -31,6 +34,10 @@
     <style>
         .table td {
             padding: 0px;
+        }
+
+        .navbar {
+            z-index: 100;
         }
     </style>
 
@@ -152,6 +159,9 @@
             <!-- End of Main Content -->
 
             <!-- Footer -->
+
+            {% block footer %}
+
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
                     <div class="copyright text-center my-auto">
@@ -159,6 +169,8 @@
                     </div>
                 </div>
             </footer>
+
+            {% endblock footer %}
             <!-- End of Footer -->
 
         </div>

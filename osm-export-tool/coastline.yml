@@ -1,0 +1,7 @@
+coastline:
+  types:
+    - lines
+  select:
+    - natural
+  where:
+    - natural = 'coastline'

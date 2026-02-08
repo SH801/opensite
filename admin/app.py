@@ -34,6 +34,7 @@ import sys, os
 sys.path.insert(0, os.getcwd())
 
 import uuid
+import requests
 import socket
 import validators
 import shutil
@@ -44,13 +45,14 @@ import time
 import os
 import psycopg2
 import zipfile
+from bs4 import BeautifulSoup
 from requests import get
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from psycopg2 import sql
 from psycopg2.extensions import AsIs
-from flask import Flask, session, render_template, request, redirect, url_for, send_file
+from flask import Flask, session, render_template, request, redirect, url_for, send_file, Response
 from dotenv import load_dotenv
 from os import listdir
 from os.path import isfile, isdir, basename, join
@@ -71,6 +73,7 @@ PROCESSING_STATE_FILE               = '../PROCESSING'
 PROCESSING_START                    = '../PROCESSINGSTART'
 PROCESSING_COMPLETE                 = '../PROCESSINGCOMPLETE'
 CERTBOT_LOG                         = '../log-certbot.txt'
+PROCESSING_ENGINE_URL               = "http://127.0.0.1:8000"
 
 app = Flask(__name__)
 application = app
@@ -135,7 +138,7 @@ def isProcessing():
 
     return isfile(PROCESSING_STATE_FILE)
 
-def startOpenWindEnergy():
+def startOpenSiteEnergy():
     """
     Starts Open Site Energy service using systemd opensiteenergy-servicesmanager
     """
@@ -146,7 +149,7 @@ def startOpenWindEnergy():
         if not isfile('/usr/src/opensiteenergy/OPENWINDENERGY-START'): break
         time.sleep(0.5)
 
-def stopOpenWindEnergy():
+def stopOpenSiteEnergy():
     """
     Stops Open Site Energy service using systemd opensiteenergy-servicesmanager
     """
@@ -170,7 +173,7 @@ def setProcessing(processing_state, command_line=''):
         with open(PROCESSING_STATE_FILE, 'w', encoding='utf-8') as file: file.write(command_line)
         # Restart processing system daemon using command line parameters
 
-        stopOpenWindEnergy()
+        stopOpenSiteEnergy()
         with open(PROCESSING_COMMAND_LINE_SERVER, 'w', encoding='utf-8') as file: 
             file.write("""#!/bin/bash
 """ + command_line + """
@@ -178,10 +181,10 @@ if ! [ -f "PROCESSING" ]; then
     ./build-tileserver-gl.sh
 fi
 """)
-        startOpenWindEnergy()
+        startOpenSiteEnergy()
     else:
         # Stop processing system daemon and reset build-server.sh to default state - in case machine gets restarted
-        stopOpenWindEnergy()
+        stopOpenSiteEnergy()
         if isfile(PROCESSING_STATE_FILE): os.remove(PROCESSING_STATE_FILE)
         with open(PROCESSING_COMMAND_LINE_SERVER, 'w', encoding='utf-8') as file: 
             file.write("""#!/bin/bash
@@ -264,18 +267,21 @@ def postgisGetResults(sql_text, sql_parameters=None):
 
 def postgisGetClippingAreas():
     """
-    Gets all available clipping areas from PostGIS osm_boundaries table
+    Gets all available clipping areas from PostGIS _opensite_clipping_master table
     """
 
-    if not postgisCheckTableExists('osm_boundaries'): return []
+    if not postgisCheckTableExists('_opensite_osm_boundaries'): 
+        print("Table missing")
+        return []
     
     clippingareas = postgisGetResults("""
     SELECT DISTINCT all_names.name FROM 
     (
-        SELECT DISTINCT name name FROM osm_boundaries WHERE name <> '' AND admin_level <> '4' UNION 
-        SELECT DISTINCT council_name name FROM osm_boundaries WHERE council_name <> '' AND admin_level <> '4' 
+        SELECT DISTINCT name name FROM _opensite_osm_boundaries WHERE name <> '' AND admin_level <> '4' UNION 
+        SELECT DISTINCT council_name name FROM _opensite_osm_boundaries WHERE council_name <> '' AND admin_level <> '4' 
     ) all_names ORDER BY all_names.name;""")
     clippingareas = [clippingarea[0] for clippingarea in clippingareas]
+    print(clippingareas)
     return clippingareas
 
 # ***********************************************************
@@ -376,6 +382,19 @@ def settings():
     clippingareas = postgisGetClippingAreas()
 
     return render_template("settings.html", clippingareas=clippingareas) 
+
+@app.route("/editor") 
+def editor():
+    """
+    Edit processing settings
+    """
+
+    if not isLoggedIn(): return redirect(url_for('login'))
+    # if isProcessing(): return redirect(url_for('serverlogs'))
+
+    clippingareas = postgisGetClippingAreas()
+
+    return render_template("editor.html", clippingareas=clippingareas) 
 
 @app.route("/files") 
 def files():
@@ -516,7 +535,56 @@ def serverlogs():
     hide_stop = False
     if 'build-cli.sh' not in session['command_line']: hide_stop = True
 
-    return render_template("logs.html", command_line=session['command_line'], started_datetime=started_datetime, hide_stop=hide_stop) 
+    # Pass along headers, body, and query params
+    resp = requests.request(
+        method=request.method,
+        url=PROCESSING_ENGINE_URL,
+        headers={k: v for k, v in request.headers if k.lower() != 'host'},
+        data=request.get_data(),
+        params=request.args,
+        cookies=request.cookies,
+        allow_redirects=False
+    )
+
+    # Exclude hop-by-hop headers
+    excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+    headers = [(name, value) for (name, value) in resp.raw.headers.items()
+               if name.lower() not in excluded_headers]
+
+    # return Response(resp.content, resp.status_code, headers)
+
+        
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    styles = "".join([str(s) for s in soup.find_all('style')])        
+    body_content = "".join([str(item) for item in soup.body.contents])
+        
+    return render_template("processmonitor.html", styles=styles, body_content=body_content) 
+
+@app.route("/nodes")
+def nodes():
+    """
+    Renders retrieves node data via processing proxy
+    """
+
+    if not isLoggedIn(): return redirect(url_for('login'))
+
+    # Pass along headers, body, and query params
+    resp = requests.request(
+        method=request.method,
+        url=f"{PROCESSING_ENGINE_URL}/nodes",
+        headers={k: v for k, v in request.headers if k.lower() != 'host'},
+        data=request.get_data(),
+        params=request.args,
+        cookies=request.cookies,
+        allow_redirects=False
+    )
+
+    # Exclude hop-by-hop headers
+    excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+    headers = [(name, value) for (name, value) in resp.raw.headers.items()
+               if name.lower() not in excluded_headers]
+
+    return Response(resp.content, resp.status_code, headers)
 
 @app.route("/processingstart", methods=['POST'])
 def processingstart():
