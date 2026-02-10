@@ -18,4 +18,6 @@ python-dotenv
 uvicorn
 fastapi
 pyogrio
+flask
+flask_cors
 #pip install --no-deps git+https://github.com/hotosm/osm-export-tool-python.git

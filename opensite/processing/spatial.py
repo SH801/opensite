@@ -409,6 +409,7 @@ class OpenSiteSpatial(ProcessBase):
             "scratch1_index": sql.Identifier(f"{scratch_table_1}_idx"),
             "scratch2_index": sql.Identifier(f"{scratch_table_2}_idx"),
             "output_index": sql.Identifier(f"{self.node.output}_idx"),
+            "output_id_index": sql.Identifier(f"{self.node.output}_id_idx"),
         }
 
         # Drop scratch tables
@@ -459,6 +460,7 @@ class OpenSiteSpatial(ProcessBase):
         query_scratch_table_1_index = sql.SQL("CREATE INDEX {scratch1_index} ON {scratch1} USING GIST (geom)").format(**dbparams)
         query_scratch_table_2_index = sql.SQL("CREATE INDEX {scratch2_index} ON {scratch2} USING GIST (geom)").format(**dbparams)
         query_output_index          = sql.SQL("CREATE INDEX {output_index} ON {output} USING GIST (geom)").format(**dbparams)
+        query_output_id_index       = sql.SQL("CREATE INDEX {output_id_index} ON {output} (id)").format(**dbparams)
 
         try:
             self.log.info(f"[preprocess] [{self.node.name}] Select only polygons, dump and make valid")
@@ -494,6 +496,7 @@ class OpenSiteSpatial(ProcessBase):
 
             self.postgis.execute_query(query_output_create)
             self.postgis.execute_query(query_output_index)
+            self.postgis.execute_query(query_output_id_index)
             self.postgis.add_table_comment(self.node.output, self.node.name)
             self.postgis.drop_table(scratch_table_1)
             self.postgis.drop_table(scratch_table_2)
@@ -539,12 +542,13 @@ class OpenSiteSpatial(ProcessBase):
         scratch_table_1 = f"tmp_1_{self.node.output}_{self.node.urn}"
 
         dbparams = {
-            "crs": sql.Literal(self.get_crs_default()),
-            "grid": sql.Identifier(grid_table),
-            "scratch1": sql.Identifier(scratch_table_1),
-            "output": sql.Identifier(self.node.output),
-            "scratch1_index": sql.Identifier(f"{scratch_table_1}_idx"),
-            "output_index": sql.Identifier(f"{self.node.output}_idx"),
+            "crs":              sql.Literal(self.get_crs_default()),
+            "grid":             sql.Identifier(grid_table),
+            "scratch1":         sql.Identifier(scratch_table_1),
+            "output":           sql.Identifier(self.node.output),
+            "scratch1_index":   sql.Identifier(f"{scratch_table_1}_idx"),
+            "output_index":     sql.Identifier(f"{self.node.output}_idx"),
+            "output_id_index":  sql.Identifier(f"{self.node.output}_id_idx"),
         }
 
         # Drop scratch tables
@@ -597,6 +601,7 @@ class OpenSiteSpatial(ProcessBase):
                     self.postgis.execute_query(query_union_by_gridsquare)
 
             self.postgis.execute_query(sql.SQL("CREATE INDEX ON {output} USING GIST (geom)").format(**dbparams))
+            self.postgis.execute_query(sql.SQL("CREATE INDEX {output_id_index} ON {output} (id)").format(**dbparams))
             self.postgis.execute_query(sql.SQL("DELETE FROM {output} WHERE ST_GeometryType(geom) NOT IN ('ST_Polygon')").format(**dbparams))
 
             self.postgis.drop_table(scratch_table_1)
@@ -725,7 +730,7 @@ class OpenSiteSpatial(ProcessBase):
             self.log.info(f"[postprocess] [{self.node.name}] Step 3: COMPLETED in {datetime.datetime.now() - start}")
 
             # --- STEP 4: Weld seams ---
-            self.log.info(f"[postprocess] [{self.node.name}] Step 4: Unioning/Welding seam geometries...")
+            self.log.info(f"[postprocess] [{self.node.name}] Step 4: Unioning / welding seam geometries...")
             start = datetime.datetime.now()
             id_query = sql.SQL("SELECT row_id FROM {table_seams}").format(**dbparams)
             ids = [r['row_id'] for r in self.postgis.fetch_all(id_query)]
@@ -737,42 +742,30 @@ class OpenSiteSpatial(ProcessBase):
 
                 strategy = "CONVENTIONAL"
 
-                # # PRE-FLIGHT: Calculate complexity to choose strategy
-                # stats_query = sql.SQL("SELECT SUM(ST_NPoints(geom)) as total_v, MAX(ST_NPoints(geom)) as max_v FROM {table_seams} WHERE row_id IN %s").format(**dbparams)
-                
-                # stats_rows = self.postgis.fetch_all(stats_query, (tuple(ids),))
-                # stats = stats_rows[0]
-                # total_v = stats['total_v'] or 0
-                # max_v = stats['max_v'] or 0
+                # CREATE TABLE {table_welded} AS 
+                # SELECT (ST_Dump(ST_Union(ST_MakeValid(geom)))).geom::geometry(Polygon, {crs}) as geom
+                # FROM {table_seams} WHERE row_id IN %s
 
-                # TOO_MANY_FEATURES = 150000  # Increased from 500
-                # TOO_MANY_VERTICES = 15000000 # Increased from 1M
-                # INDIVIDUAL_TOO_COMPLEX = 500000
-
-                # # Decision logic
-                # if (total > TOO_MANY_FEATURES or 
-                #     total_v > TOO_MANY_VERTICES or 
-                #     max_v > INDIVIDUAL_TOO_COMPLEX):
-                #     strategy = "ITERATIVE"
-    
-                # self.log.info(f"[postprocess] [{self.node.name}] Strategy: {strategy} ({total} features, {total_v} vertices)")
+                self.log.info(f"[postprocess] [{self.node.name}] Strategy: {strategy} - {total} features")
 
                 # EXECUTION: Conventional Path (Fast)
                 if strategy == "CONVENTIONAL":
                     try:
                         self.postgis.execute_query(sql.SQL("""
-                            CREATE TABLE {table_welded} AS 
-                            SELECT (ST_Dump(ST_Union(ST_MakeValid(geom)))).geom::geometry(Polygon, {crs}) as geom
-                            FROM {table_seams} WHERE row_id IN %s
+                        CREATE TABLE {table_welded} AS 
+                        SELECT (ST_Dump(ST_UnaryUnion(ST_Collect(ST_MakeValid(geom))))).geom::geometry(Polygon, {crs}) as geom
+                        FROM {table_seams} 
+                        WHERE row_id IN %s
                         """).format(**dbparams), (tuple(ids),))
                     except Exception as e:
-                        self.log.warning(f"[postprocess] [{self.node.name}] Conventional weld failed: {e}. Falling back to Iterative.")
+                        self.log.warning(f"[postprocess] [{self.node.name}] Conventional weld failed: {e}")
+                        self.log.warning(f"[postprocess] [{self.node.name}] Falling back to ITERATIVE strategy - slower but less memory intensive")
                         strategy = "ITERATIVE"
                         self.postgis.execute_query(sql.SQL("DROP TABLE IF EXISTS {table_welded}").format(**dbparams))
 
                 # EXECUTION: Iterative Path (Safe/Slow)
                 if strategy == "ITERATIVE":
-                    self.log.info(f"[postprocess] [{self.node.name}] Starting iterative weld loop...")
+                    self.log.info(f"[postprocess] [{self.node.name}] Starting iterative weld loop on {total} geometries...")
                     
                     # Seed the table with the first row
                     self.postgis.execute_query(sql.SQL("""
@@ -788,7 +781,7 @@ class OpenSiteSpatial(ProcessBase):
                             FROM {table_seams} s WHERE s.row_id = %s
                         """).format(**dbparams), (poly_id,))
 
-                        # Periodic logging for your new lag-free UI
+                        # Periodic logging to avoid inundating terminal
                         if i % 100 == 0 or i == total - 1:
                             self.log.info(f"[postprocess] [{self.node.name}] Step 4: Progress: {i+1}/{total} seams welded (Iterative)")
 

@@ -52,7 +52,8 @@ from io import BytesIO
 from pathlib import Path
 from psycopg2 import sql
 from psycopg2.extensions import AsIs
-from flask import Flask, session, render_template, request, redirect, url_for, send_file, Response
+from flask import Flask, session, render_template, request, redirect, url_for, send_file, Response, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 from os import listdir
 from os.path import isfile, isdir, basename, join
@@ -76,6 +77,7 @@ CERTBOT_LOG                         = '../log-certbot.txt'
 PROCESSING_ENGINE_URL               = "http://127.0.0.1:8000"
 
 app = Flask(__name__)
+CORS(app)
 application = app
 
 # ***********************************************************
@@ -301,6 +303,35 @@ def home():
 # def proxy(path):
 #   return get(f'{SITE_NAME}{path}').content
 
+@app.route('/ckan')
+def proxy():
+    target_url = request.args.get('url')
+    if not target_url:
+        return "No URL provided", 400
+
+    try:
+        # 1. Use a real User-Agent (CKAN sometimes blocks 'python-requests')
+        # 2. verify=False can be used if you have local SSL certificate issues
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(target_url, headers=headers, stream=True, timeout=15)
+        
+        # 3. Check if CKAN actually returned the file
+        response.raise_for_status()
+
+        # 4. Return the content with the original content-type (e.g., text/yaml)
+        return Response(
+            response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type')
+        )
+
+    except requests.exceptions.RequestException as e:
+        print(f"CRITICAL PROXY ERROR: {e}")
+        return f"Proxy failed to reach CKAN: {str(e)}", 502
+    except Exception as e:
+        print(f"INTERNAL SERVER ERROR: {e}")
+        return f"Internal Error: {str(e)}", 500
+    
 @app.route("/admin")
 def admin():
     """
