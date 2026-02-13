@@ -14,7 +14,6 @@
     <title>Open Site Energy Server - {% block title %}{{ title }}{% endblock title %}</title>
 
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@latest/dist/jsoneditor.min.js"></script>
 
     <script src="{{ url_for('static', path='js/slimselect.min.js') }}"></script>
     <link href="{{ url_for('static', path='css/slimselect.css') }}" rel="stylesheet"></link>
@@ -31,7 +30,7 @@
     <!-- Custom styles for this page -->
     <link href="{{ url_for('static', path='vendor/datatables/dataTables.bootstrap4.min.css') }}" rel="stylesheet">
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -52,7 +51,7 @@
         .full { grid-column: 1 / -1; }
         
         .template-header { background: var(--dark); color: white; padding: 15px 25px; border-radius: 10px; margin: 0 auto 20px auto;}
-        .template-select { padding: 8px; border-radius: 5px; width: 350px; border: none; }
+        .template-select { padding: 8px; border-radius: 5px; border: none; }
 
         .flex { display: flex; gap: 10px; align-items: flex-end; }
         .form-group { margin-bottom: 2px; }
@@ -160,6 +159,8 @@
             background-size: 12px;
             
             padding-right: 40px; 
+
+            overflow-x:hidden;overflow: hidden;
         }
 
 

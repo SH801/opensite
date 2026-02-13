@@ -16,6 +16,7 @@ from psycopg2 import sql
 from pydantic import BaseModel
 from fastapi import APIRouter, Request, BackgroundTasks, Query, Form, Response, HTTPException
 from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse, JSONResponse
+from starlette.status import HTTP_303_SEE_OTHER
 from dotenv import load_dotenv
 from opensite.constants import OpenSiteConstants
 from opensite.postgis.opensite import OpenSitePostGIS
@@ -23,23 +24,10 @@ from opensite.postgis.opensite import OpenSitePostGIS
 # Create the router instance
 OpenSiteRouter = APIRouter()
 
-SUFFIX_TO_NAME = {
-    'geojson': 'GeoJSON',
-    'shp': 'Shapefile',
-    'mbtiles': 'MBTiles',
-    'gpkg': 'GPKG',
-    'qgis': 'QGIS',
-    'all': 'all'
-}
 
-class ConfigItem(BaseModel):
-    type: str
-    value: str
-    name: str
-
-class BuildConfiguration(BaseModel):
-    configurations: List[ConfigItem]
-    last_updated: Optional[str] = None
+# **********************************************************
+# **************** Core website functions ******************
+# **********************************************************
 
 def is_logged_in(request: Request) -> bool:
     """
@@ -51,28 +39,6 @@ def is_logged_in(request: Request) -> bool:
 def get_qgis_path():
     """Gets path of main QGIS file"""
     return OpenSiteConstants.OUTPUT_LAYERS_FOLDER.parent / f"{OpenSiteConstants.OPENSITEENERGY_SHORTNAME}.qgs"
-
-def get_clipping_areas(request: Request):
-    """
-    Gets all available clipping areas from PostGIS _opensite_clipping_master table
-    """
-
-    log = request.app.state.log
-    postgis = OpenSitePostGIS()
-    if not postgis.table_exists(OpenSiteConstants.OPENSITE_OSMBOUNDARIES):
-        log.warning(f"Table {OpenSiteConstants.OPENSITE_OSMBOUNDARIES} missing")
-        return []
-
-    clipping_query = sql.SQL("""
-    SELECT DISTINCT all_names.name FROM 
-    (
-        SELECT DISTINCT name name FROM {boundaries} WHERE name <> '' AND admin_level <> '4' UNION 
-        SELECT DISTINCT council_name name FROM {boundaries} WHERE council_name <> '' AND admin_level <> '4' 
-    ) all_names ORDER BY all_names.name""").format(boundaries=sql.Identifier(OpenSiteConstants.OPENSITE_OSMBOUNDARIES))  
-    clippingareas = postgis.fetch_all(clipping_query)
-    clippingareas = [clippingarea['name'] for clippingarea in clippingareas]
-
-    return clippingareas
 
 @OpenSiteRouter.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -150,353 +116,6 @@ async def process_login(
     request.session['logged_in'] = True
     return RedirectResponse(url="/configurations", status_code=303)
 
-@OpenSiteRouter.get("/configurations", response_class=HTMLResponse)
-async def configurations(request: Request):
-    """
-    Renders configurations page
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    return request.app.state.templates.TemplateResponse(
-        "configurations.html", 
-        {"request": request}
-    )
-
-@OpenSiteRouter.get("/build", response_class=HTMLResponse)
-async def build(request: Request):
-    """
-    Renders build page
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    clipping_areas = get_clipping_areas(request)
-
-    return request.app.state.templates.TemplateResponse(
-        "build.html", 
-        {
-            "request": request,
-            "clippingareas": clipping_areas
-        }
-    )
-
-@OpenSiteRouter.get("/getbuild")
-async def get_build(request: Request):
-    """
-    Reads the build configuration from the JSON file.
-    """
-    config_path = Path(OpenSiteConstants.BUILD_CONFIG)
-    
-    if not config_path.exists():
-        # Return a default empty structure if the file doesn't exist yet
-        return {"configurations": []}
-
-    try:
-        with open(config_path, "r") as f:
-            data = json.load(f)
-        return data
-    except Exception as e:
-        request.app.state.log.error(f"Failed to read build config: {e}")
-        return {"configurations": []}
-
-@OpenSiteRouter.post("/savebuild")
-async def save_build(build: BuildConfiguration, request: Request):
-    """
-    Saves the build configuration to the JSON file.
-    """
-    # Security Check (Standard for your other routes)
-    if not request.session.get('logged_in', False):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    config_path = Path(OpenSiteConstants.BUILD_CONFIG)
-    
-    try:
-        # Ensure the directory exists
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Convert Pydantic model to dict and save
-        with open(config_path, "w") as f:
-            json.dump(build.model_dump(), f, indent=4)
-            
-        request.app.state.log.info(f"Build config saved successfully to {config_path}")
-        return {"status": "success"}
-    except Exception as e:
-        request.app.state.log.error(f"Failed to save build config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
-@OpenSiteRouter.get("/setdomain", response_class=HTMLResponse)
-async def set_domain(request: Request):
-    """
-    Show set domain name page
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    return request.app.state.templates.TemplateResponse(
-        "setdomain.html", 
-        {"request": request, "error": None}
-    )
-
-@OpenSiteRouter.post("/processdomain")
-async def process_domain(request: Request, domain: str = Form("")):
-    """
-    Process submitted domain name
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    domain = domain.strip()
-
-    # 1. Check Domain IP
-    try:
-        # socket.gethostbyname is blocking, but usually fast. 
-        # For a true async setup, you'd use a resolver, but this works for now.
-        domain_ip = socket.gethostbyname(domain).strip()
-    except:
-        domain_ip = None
-
-    # 2. Check Visible IP (Async way)
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get('https://ipinfo.io/ip', timeout=5.0)
-            visible_ip = resp.text.strip()
-        except Exception:
-            visible_ip = "0.0.0.0"
-
-    # 3. Validation
-    if domain_ip != visible_ip:
-        return request.app.state.templates.TemplateResponse(
-            "setdomain.html", 
-            {"request": request, "error": domain}
-        )
-
-    # 4. Save Domain File
-    # Ensure the directory exists or path is correct for your environment
-    try:
-        with open(OpenSiteConstants.DOMAIN_FILE, 'w') as file:
-            file.write(f"DOMAIN={domain}")
-    except Exception as e:
-        request.app.state.log.error(f"Failed to write DOMAIN file: {e}")
-
-    # 5. Redirect to the non-secure IP to monitor progress
-    redirect_url = f"http://{visible_ip}/redirectdomain?id={uuid.uuid4()}&domain={domain}"
-    return RedirectResponse(url=redirect_url, status_code=303)
-
-@OpenSiteRouter.get("/redirectdomain", response_class=HTMLResponse)
-async def redirect_domain(
-    request: Request, 
-    domain: str = Query(""), 
-    id: str = Query(None)
-):
-    """
-    Creates redirect page that shows result of Certbot
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    # 1. Non-blocking sleep to allow servicesmanager to clear logs
-    await asyncio.sleep(4)
-
-    certbot_result, certbot_success = '', False
-    if os.path.isfile(OpenSiteConstants.CERTBOT_LOG):
-        with open(OpenSiteConstants.CERTBOT_LOG, "r", encoding='utf-8') as text_file:
-            certbot_result = text_file.read().strip()
-
-    if 'Successfully deployed certificate' in certbot_result:
-        certbot_success = True
-
-    # 2. Get Visible IP again
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get('https://ipinfo.io/ip', timeout=5.0)
-            visible_ip = resp.text.strip()
-        except:
-            visible_ip = "0.0.0.0"
-
-    # 3. Logic for the next redirect
-    base_redirect = f"http://{visible_ip}/redirectdomain?id={uuid.uuid4()}"
-    
-    if domain:
-        if certbot_success:
-            redirect_url = f"https://{domain}/admin"
-        else:
-            redirect_url = f"{base_redirect}&domain={domain}"
-    else:
-        redirect_url = base_redirect
-
-    return request.app.state.templates.TemplateResponse(
-        "redirectdomain.html", 
-        {
-            "request": request, 
-            "domain": domain, 
-            "certbot_success": certbot_success, 
-            "certbot_result": certbot_result, 
-            "redirect_url": redirect_url
-        }
-    )
-
-@OpenSiteRouter.get("/files", response_class=HTMLResponse)
-async def files_page(request: Request):
-    """
-    Renders downloadable files page
-    """
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-
-    files_list = []
-    
-    if OpenSiteConstants.OUTPUT_LAYERS_FOLDER.is_dir():
-        # Using a simple list comprehension with pathlib
-        files_list = [
-            {'name': f.name, 'url': f'/outputfiles/{f.name}'} 
-            for f in OpenSiteConstants.OUTPUT_LAYERS_FOLDER.iterdir() if f.is_file()
-        ]
-
-    qgis_file = get_qgis_path()
-    qgis_exists = qgis_file.is_file()
-
-    return request.app.state.templates.TemplateResponse(
-        "files.html", 
-        {"request": request, "files": files_list, "qgis": qgis_exists}
-    )
-
-zip_progress = {}
-
-def zip_worker(request: Request, session_id: str, zip_suffix: str, extension_filter: list = None, qgis_mode: bool = False):
-    """
-    Background worker that zips files and updates the progress global dict.
-    """
-    log = request.app.state.log
-    folder = OpenSiteConstants.OUTPUT_LAYERS_FOLDER
-    
-    # 1. Identify files to process
-    files_to_process = []
-    if qgis_mode:
-        qgis_file = get_qgis_path()
-        if qgis_file.is_file():
-            files_to_process.append((qgis_file, qgis_file.name))
-        for f in folder.iterdir():
-            if f.is_file() and f.suffix == '.gpkg':
-                files_to_process.append((f, f"output/{f.name}"))
-    else:
-        for f in folder.iterdir():
-            if f.is_file():
-                if extension_filter and f.suffix.lstrip('.') not in extension_filter:
-                    continue
-                files_to_process.append((f, f.name))
-
-    # 2. Update Progress Metadata
-    zip_progress[session_id] = {"current": 0, "total": len(files_to_process), "status": "processing", "file_type": SUFFIX_TO_NAME[zip_suffix]}
-        
-    # 3. Create the Physical Zip in /tmp
-    temp_path = f"/tmp/opensite_{session_id}.zip"
-    try:
-        with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for i, (file_path, arcname) in enumerate(files_to_process):
-                log.info(f"Adding {file_path.name} to zip for session {session_id}")
-                zf.write(file_path, arcname=arcname)
-                
-                # Update progress count
-                zip_progress[session_id]["current"] = i + 1
-        
-        zip_progress[session_id]["status"] = "complete"
-    except Exception as e:
-        log.error(f"Zip failed for {session_id}: {e}")
-        zip_progress[session_id]["status"] = "failed"
-
-@OpenSiteRouter.get("/download/progress")
-def get_progress(request: Request):
-    """Endpoint for JS to poll progress"""
-
-    if not request.session.get('logged_in', False):
-            return JSONResponse({"status": "unauthorized"}, status_code=401)
-
-    session_id = request.session.get("download_id")
-    return zip_progress.get(session_id, {"status": "idle"})
-
-@OpenSiteRouter.get("/download/get-file")
-def get_file(request: Request):
-    """Final endpoint to download the result"""
-
-    if not request.session.get('logged_in', False):
-        return JSONResponse({"status": "unauthorized"}, status_code=401)
-
-    session_id = request.session.get("download_id")
-    temp_path = f"/tmp/opensite_{session_id}.zip"
-    
-    if os.path.exists(temp_path):
-        return FileResponse(
-            temp_path, 
-            filename=f"{OpenSiteConstants.OPENSITEENERGY_SHORTNAME}-export.zip"
-        )
-    return JSONResponse({"error": "File not found"}, status_code=404)
-
-@OpenSiteRouter.get("/downloadall")
-def download_all(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    background_tasks.add_task(zip_worker, request, session_id, 'all', None)
-    return {"status": "started"}
-
-@OpenSiteRouter.get("/downloadgpkg")
-def download_gpkg(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    background_tasks.add_task(zip_worker, request, session_id, 'gpkg', ['gpkg'])
-    return {"status": "started"}
-
-@OpenSiteRouter.get("/downloadgeojson")
-def download_geojson(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    background_tasks.add_task(zip_worker, request, session_id, 'geojson', ['geojson'])
-    return {"status": "started"}
-
-@OpenSiteRouter.get("/downloadshp")
-def download_shp(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    # Shapefiles require multiple extensions to be functional
-    background_tasks.add_task(zip_worker, request, session_id, 'shp', ['shp', 'prj', 'shx', 'dbf'])
-    return {"status": "started"}
-
-@OpenSiteRouter.get("/downloadmbtiles")
-def download_mbtiles(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    background_tasks.add_task(zip_worker, request, session_id, 'mbtiles', ['mbtiles'])
-    return {"status": "started"}
-
-@OpenSiteRouter.get("/downloadqgis")
-def download_qgis(request: Request, background_tasks: BackgroundTasks):
-    if not request.session.get('logged_in', False):
-        return RedirectResponse(url="/login", status_code=303)
-    
-    qgis_file = get_qgis_path()
-    if not qgis_file.is_file():
-         return request.app.state.templates.TemplateResponse(
-            "error.html", 
-            {"request": request, "message": "No QGIS file has been created yet."},
-            status_code=404
-        )
-
-    session_id = str(uuid.uuid4())
-    request.session["download_id"] = session_id
-    
-    background_tasks.add_task(zip_worker, request, session_id, 'qgis', qgis_mode=True)
-    return {"status": "started"}
-
 @OpenSiteRouter.get("/status")
 async def status(request: Request):
 
@@ -515,6 +134,24 @@ async def status(request: Request):
         "start_time": time.ctime(processing_start),
         "active_workers": threading.active_count()
     }
+
+
+# **********************************************************
+# *************** Configurations functions *****************
+# **********************************************************
+
+@OpenSiteRouter.get("/configurations", response_class=HTMLResponse)
+async def configurations(request: Request):
+    """
+    Renders configurations page
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    return request.app.state.templates.TemplateResponse(
+        "configurations.html", 
+        {"request": request}
+    )
 
 @OpenSiteRouter.get("/ckan")
 async def proxy(request: Request, url: str = Query(..., description="The CKAN target URL")):
@@ -633,18 +270,481 @@ async def delete_config(request: Request, urn: str = Query(...)):
 
     return await config_list(request)
 
-@OpenSiteRouter.get("/dashboard", response_class=HTMLResponse)
-async def get_dashboard(request: Request):
-    # 'templates' would be accessed via app state or imported
-    templates = request.app.state.templates
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+# **********************************************************
+# ******************** Build functions *********************
+# **********************************************************
 
-@OpenSiteRouter.post("/processingstart")
+COUNTRIES_LIST = \
+[
+    OpenSiteConstants.OSM_NAME_CONVERT['england'],
+    OpenSiteConstants.OSM_NAME_CONVERT['scotland'],
+    OpenSiteConstants.OSM_NAME_CONVERT['wales'],
+    OpenSiteConstants.OSM_NAME_CONVERT['northern-ireland'],
+
+]
+
+class ConfigItem(BaseModel):
+    type: str
+    value: str
+    name: str
+
+class BuildConfiguration(BaseModel):
+    configurations: List[ConfigItem]
+    clippingareas: List[str] = ['United Kingdom']
+    last_updated: Optional[str] = None
+
+def get_clipping_areas(request: Request):
+    """
+    Gets all available clipping areas from PostGIS _opensite_clipping_master table
+    """
+
+    log = request.app.state.log
+    postgis = OpenSitePostGIS()
+    if not postgis.table_exists(OpenSiteConstants.OPENSITE_OSMBOUNDARIES):
+        log.warning(f"Table {OpenSiteConstants.OPENSITE_OSMBOUNDARIES} missing")
+        return []
+
+    clipping_query = sql.SQL("""
+    SELECT DISTINCT all_names.name FROM 
+    (
+        SELECT DISTINCT name name FROM {boundaries} WHERE name <> '' AND admin_level <> '4' UNION 
+        SELECT DISTINCT council_name name FROM {boundaries} WHERE council_name <> '' AND admin_level <> '4' 
+    ) all_names ORDER BY all_names.name""").format(boundaries=sql.Identifier(OpenSiteConstants.OPENSITE_OSMBOUNDARIES))  
+    clippingareas = postgis.fetch_all(clipping_query)
+    clippingareas = [clippingarea['name'] for clippingarea in clippingareas]
+    clippingareas = COUNTRIES_LIST + clippingareas
+
+    return clippingareas
+
+@OpenSiteRouter.get("/build", response_class=HTMLResponse)
+async def build(request: Request):
+    """
+    Renders build page
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    clipping_areas = get_clipping_areas(request)
+
+    return request.app.state.templates.TemplateResponse(
+        "build.html", 
+        {
+            "request": request,
+            "clippingareas": clipping_areas
+        }
+    )
+
+@OpenSiteRouter.get("/getbuild")
+async def get_build(request: Request):
+    """
+    Reads the build configuration from the JSON file.
+    """
+    config_path = Path(OpenSiteConstants.BUILD_CONFIG)
+    
+    if not config_path.exists():
+        # Return a default empty structure if the file doesn't exist yet
+        return {"configurations": []}
+
+    try:
+        with open(config_path, "r") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        request.app.state.log.error(f"Failed to read build config: {e}")
+        return {"configurations": []}
+
+@OpenSiteRouter.post("/savebuild")
+async def save_build(build: BuildConfiguration, request: Request):
+    """
+    Saves the build configuration to the JSON file.
+    """
+    # Security Check (Standard for your other routes)
+    if not request.session.get('logged_in', False):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    config_path = Path(OpenSiteConstants.BUILD_CONFIG)
+    
+    try:
+        # Ensure the directory exists
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Convert Pydantic model to dict and save
+        with open(config_path, "w") as f:
+            json.dump(build.model_dump(), f, indent=4)
+            
+        request.app.state.log.info(f"Build config saved successfully to {config_path}")
+        return {"status": "success"}
+    except Exception as e:
+        request.app.state.log.error(f"Failed to save build config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@OpenSiteRouter.post("/startbuild")
 async def processing_start(request: Request):
     log = request.app.state.log
-    log.info("Starting processing")
+    log.info("Starting build")
 
-@OpenSiteRouter.post("/processingstop")
+    return RedirectResponse(
+            url="/processmonitor", 
+            status_code=HTTP_303_SEE_OTHER
+        )
+
+@OpenSiteRouter.get("/processmonitor")
+async def processmonitor(request: Request):
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "processmonitor.html", 
+        {"request": request}
+    )
+
+@OpenSiteRouter.api_route("/nodes", methods=["GET", "POST", "PUT", "DELETE"])
+async def nodes(request: Request):
+    """
+    Retrieves node data via an asynchronous processing proxy using httpx.
+    NOTE: This is only temporary until we can probably send messages to processing queue
+    """
+
+    PROCESSING_ENGINE_URL               = "http://127.0.0.1:8000"
+
+    log = request.app.state.log
+
+    # 1. Security Check
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    # 2. Extract request metadata
+    body = await request.body()
+    url = f"{PROCESSING_ENGINE_URL}/nodes"
+    
+    # Filter out headers that shouldn't be forwarded
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in ['host', 'content-length']}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # We use request.method to dynamically handle GET, POST, etc.
+            proxy_resp = await client.request(
+                method=request.method,
+                url=url,
+                headers=headers,
+                content=body,
+                params=dict(request.query_params),
+                cookies=request.cookies,
+                follow_redirects=False,
+                timeout=60.0  # Adjust based on your engine's expected response time
+            )
+
+        # 3. Filter Hop-by-Hop Headers (Standard Proxy behavior)
+        excluded_headers = [
+            'content-encoding', 'content-length', 'transfer-encoding', 
+            'connection', 'keep-alive', 'proxy-authenticate', 'upgrade'
+        ]
+        
+        response_headers = {
+            name: value for (name, value) in proxy_resp.headers.items()
+            if name.lower() not in excluded_headers
+        }
+
+        # 4. Return the Streamed Content
+        return Response(
+            content=proxy_resp.content,
+            status_code=proxy_resp.status_code,
+            headers=response_headers
+        )
+
+    except httpx.RequestError as e:
+        request.app.state.log.error(f"HTTPX Proxy error to {url}: {e}")
+        raise HTTPException(status_code=502, detail="Upstream processing engine error")
+
+@OpenSiteRouter.post("/stopbuild")
 async def processing_stop(request: Request):
     log = request.app.state.log
-    log.info("Stopping processing")
+    log.info("Stopping build")
+
+# **********************************************************
+# *************** Download files functions *****************
+# **********************************************************
+
+SUFFIX_TO_NAME = {
+    'geojson': 'GeoJSON',
+    'shp': 'Shapefile',
+    'mbtiles': 'MBTiles',
+    'gpkg': 'GPKG',
+    'qgis': 'QGIS',
+    'all': 'all'
+}
+
+zip_progress = {}
+
+def zip_worker(request: Request, session_id: str, zip_suffix: str, extension_filter: list = None, qgis_mode: bool = False):
+    """
+    Background worker that zips files and updates the progress global dict.
+    """
+    log = request.app.state.log
+    folder = OpenSiteConstants.OUTPUT_LAYERS_FOLDER
+    
+    # 1. Identify files to process
+    files_to_process = []
+    if qgis_mode:
+        qgis_file = get_qgis_path()
+        if qgis_file.is_file():
+            files_to_process.append((qgis_file, qgis_file.name))
+        for f in folder.iterdir():
+            if f.is_file() and f.suffix == '.gpkg':
+                files_to_process.append((f, f"output/{f.name}"))
+    else:
+        for f in folder.iterdir():
+            if f.is_file():
+                if extension_filter and f.suffix.lstrip('.') not in extension_filter:
+                    continue
+                files_to_process.append((f, f.name))
+
+    # 2. Update Progress Metadata
+    zip_progress[session_id] = {"current": 0, "total": len(files_to_process), "status": "processing", "file_type": SUFFIX_TO_NAME[zip_suffix]}
+        
+    # 3. Create the Physical Zip in /tmp
+    temp_path = f"/tmp/opensite_{session_id}.zip"
+    try:
+        with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for i, (file_path, arcname) in enumerate(files_to_process):
+                log.info(f"Adding {file_path.name} to zip for session {session_id}")
+                zf.write(file_path, arcname=arcname)
+                
+                # Update progress count
+                zip_progress[session_id]["current"] = i + 1
+        
+        zip_progress[session_id]["status"] = "complete"
+    except Exception as e:
+        log.error(f"Zip failed for {session_id}: {e}")
+        zip_progress[session_id]["status"] = "failed"
+
+@OpenSiteRouter.get("/files", response_class=HTMLResponse)
+async def files_page(request: Request):
+    """
+    Renders downloadable files page
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    files_list = []
+    
+    if OpenSiteConstants.OUTPUT_LAYERS_FOLDER.is_dir():
+        # Using a simple list comprehension with pathlib
+        files_list = [
+            {'name': f.name, 'url': f'/outputfiles/{f.name}'} 
+            for f in OpenSiteConstants.OUTPUT_LAYERS_FOLDER.iterdir() if f.is_file()
+        ]
+
+    qgis_file = get_qgis_path()
+    qgis_exists = qgis_file.is_file()
+
+    return request.app.state.templates.TemplateResponse(
+        "files.html", 
+        {"request": request, "files": files_list, "qgis": qgis_exists}
+    )
+
+@OpenSiteRouter.get("/download/progress")
+def get_progress(request: Request):
+    """Endpoint for JS to poll progress"""
+
+    if not request.session.get('logged_in', False):
+            return JSONResponse({"status": "unauthorized"}, status_code=401)
+
+    session_id = request.session.get("download_id")
+    return zip_progress.get(session_id, {"status": "idle"})
+
+@OpenSiteRouter.get("/download/get-file")
+def get_file(request: Request):
+    """Final endpoint to download the result"""
+
+    if not request.session.get('logged_in', False):
+        return JSONResponse({"status": "unauthorized"}, status_code=401)
+
+    session_id = request.session.get("download_id")
+    temp_path = f"/tmp/opensite_{session_id}.zip"
+    
+    if os.path.exists(temp_path):
+        return FileResponse(
+            temp_path, 
+            filename=f"{OpenSiteConstants.OPENSITEENERGY_SHORTNAME}-export.zip"
+        )
+    return JSONResponse({"error": "File not found"}, status_code=404)
+
+@OpenSiteRouter.get("/downloadall")
+def download_all(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    background_tasks.add_task(zip_worker, request, session_id, 'all', None)
+    return {"status": "started"}
+
+@OpenSiteRouter.get("/downloadgpkg")
+def download_gpkg(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    background_tasks.add_task(zip_worker, request, session_id, 'gpkg', ['gpkg'])
+    return {"status": "started"}
+
+@OpenSiteRouter.get("/downloadgeojson")
+def download_geojson(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    background_tasks.add_task(zip_worker, request, session_id, 'geojson', ['geojson'])
+    return {"status": "started"}
+
+@OpenSiteRouter.get("/downloadshp")
+def download_shp(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    # Shapefiles require multiple extensions to be functional
+    background_tasks.add_task(zip_worker, request, session_id, 'shp', ['shp', 'prj', 'shx', 'dbf'])
+    return {"status": "started"}
+
+@OpenSiteRouter.get("/downloadmbtiles")
+def download_mbtiles(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    background_tasks.add_task(zip_worker, request, session_id, 'mbtiles', ['mbtiles'])
+    return {"status": "started"}
+
+@OpenSiteRouter.get("/downloadqgis")
+def download_qgis(request: Request, background_tasks: BackgroundTasks):
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+    
+    qgis_file = get_qgis_path()
+    if not qgis_file.is_file():
+         return request.app.state.templates.TemplateResponse(
+            "error.html", 
+            {"request": request, "message": "No QGIS file has been created yet."},
+            status_code=404
+        )
+
+    session_id = str(uuid.uuid4())
+    request.session["download_id"] = session_id
+    
+    background_tasks.add_task(zip_worker, request, session_id, 'qgis', qgis_mode=True)
+    return {"status": "started"}
+
+# **********************************************************
+# ***************** Set domain functions *******************
+# **********************************************************
+
+@OpenSiteRouter.get("/setdomain", response_class=HTMLResponse)
+async def set_domain(request: Request):
+    """
+    Show set domain name page
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    return request.app.state.templates.TemplateResponse(
+        "setdomain.html", 
+        {"request": request, "error": None}
+    )
+
+@OpenSiteRouter.post("/processdomain")
+async def process_domain(request: Request, domain: str = Form("")):
+    """
+    Process submitted domain name
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    domain = domain.strip()
+
+    # 1. Check Domain IP
+    try:
+        # socket.gethostbyname is blocking, but usually fast. 
+        # For a true async setup, you'd use a resolver, but this works for now.
+        domain_ip = socket.gethostbyname(domain).strip()
+    except:
+        domain_ip = None
+
+    # 2. Check Visible IP (Async way)
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get('https://ipinfo.io/ip', timeout=5.0)
+            visible_ip = resp.text.strip()
+        except Exception:
+            visible_ip = "0.0.0.0"
+
+    # 3. Validation
+    if domain_ip != visible_ip:
+        return request.app.state.templates.TemplateResponse(
+            "setdomain.html", 
+            {"request": request, "error": domain}
+        )
+
+    # 4. Save Domain File
+    # Ensure the directory exists or path is correct for your environment
+    try:
+        with open(OpenSiteConstants.DOMAIN_FILE, 'w') as file:
+            file.write(f"DOMAIN={domain}")
+    except Exception as e:
+        request.app.state.log.error(f"Failed to write DOMAIN file: {e}")
+
+    # 5. Redirect to the non-secure IP to monitor progress
+    redirect_url = f"http://{visible_ip}/redirectdomain?id={uuid.uuid4()}&domain={domain}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+@OpenSiteRouter.get("/redirectdomain", response_class=HTMLResponse)
+async def redirect_domain(
+    request: Request, 
+    domain: str = Query(""), 
+    id: str = Query(None)
+):
+    """
+    Creates redirect page that shows result of Certbot
+    """
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
+
+    # 1. Non-blocking sleep to allow servicesmanager to clear logs
+    await asyncio.sleep(4)
+
+    certbot_result, certbot_success = '', False
+    if os.path.isfile(OpenSiteConstants.CERTBOT_LOG):
+        with open(OpenSiteConstants.CERTBOT_LOG, "r", encoding='utf-8') as text_file:
+            certbot_result = text_file.read().strip()
+
+    if 'Successfully deployed certificate' in certbot_result:
+        certbot_success = True
+
+    # 2. Get Visible IP again
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get('https://ipinfo.io/ip', timeout=5.0)
+            visible_ip = resp.text.strip()
+        except:
+            visible_ip = "0.0.0.0"
+
+    # 3. Logic for the next redirect
+    base_redirect = f"http://{visible_ip}/redirectdomain?id={uuid.uuid4()}"
+    
+    if domain:
+        if certbot_success:
+            redirect_url = f"https://{domain}/admin"
+        else:
+            redirect_url = f"{base_redirect}&domain={domain}"
+    else:
+        redirect_url = base_redirect
+
+    return request.app.state.templates.TemplateResponse(
+        "redirectdomain.html", 
+        {
+            "request": request, 
+            "domain": domain, 
+            "certbot_success": certbot_success, 
+            "certbot_result": certbot_result, 
+            "redirect_url": redirect_url
+        }
+    )
