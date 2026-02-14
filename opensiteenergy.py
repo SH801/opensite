@@ -1,11 +1,12 @@
 import logging
 from opensite.app.opensite import OpenSiteApplication
 
-def main():
+opensiteenergy = OpenSiteApplication(logging.INFO)
+app = opensiteenergy.app
 
+def main():
     # Run OpenSite application
-    app = OpenSiteApplication(logging.INFO)
-    app.run()
+    opensiteenergy.run()
 
 if __name__ == "__main__":
     main()

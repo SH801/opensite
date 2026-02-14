@@ -39,7 +39,18 @@ class ForceDownloadMiddleware(BaseHTTPMiddleware):
             # This tells the browser: "Don't open this, save it!"
             response.headers["Content-Disposition"] = "attachment"
         return response
-    
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    # (The app is starting up here)
+    yield
+    # --- Shutdown ---
+    # This is where Uvicorn calls your stop logic!
+    orchestrator = app.state.orchestrator
+    orchestrator.log.info("Uvicorn signaling shutdown...")
+    orchestrator.stop()
+
 class OpenSiteApplication:
     def __init__(self, log_level=OpenSiteConstants.LOGGING_LEVEL):
         self.log = OpenSiteLogger("OpenSiteApplication")
@@ -170,6 +181,9 @@ class OpenSiteApplication:
         with open("stop.signal", "w") as f:
             f.write("STOP")
 
+        postgis = OpenSitePostGIS(log_level=self.log_level)
+        postgis.cancel_own_queries()
+
         self.build_running = False
         self.processing_start = None
         self.processing_stop = None
@@ -253,12 +267,20 @@ class OpenSiteApplication:
             self.stop()
 
     def stop(self):
-        """Cleanup and termination"""
-        self.log.info(f"Stopping headless server on port {self.serverport}")
+        """Master shutdown command for both the server and any active builds."""
+        self.log.info(f"Shutdown initiated for port {self.serverport}")
+
+        # Always signal server and main loop to stop regardless of whether build is running
         if self.server:
             self.server.should_exit = True
+        self.should_exit = True
+
+        # Only perform build cleanup if build is active and we haven't already signalled stop
+        if self.stop_event.is_set() or not self.build_running:
+            return
+
+        self.stop_event.set()
         self.build_stop()
-        sys.exit(0)
 
     def show_elapsed_time(self):
         """Shows elapsed time since object was created, ie. when process started"""

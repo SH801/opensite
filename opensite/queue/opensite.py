@@ -208,6 +208,8 @@ class OpenSiteQueue:
         shared_lock, \
         shared_metadata = args
          
+        if shutdown_requested(): return urn, 'cancelled'
+
         logger = OpenSiteLogger("OpenSiteQueue", log_level, shared_lock)
 
         logger.info(f"[CPU:{action}] {name}")
@@ -274,6 +276,8 @@ class OpenSiteQueue:
         """
 
         self.graph.log.info(f"[I/O:{node.action}] {node.name}")
+
+        if shutdown_requested(): return 'cancelled'
 
         # Use shared_metadata for concatenator as needs access to cross-process variables
 

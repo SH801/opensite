@@ -61,6 +61,16 @@ class PostGISBase:
             self.log.debug("Closing main database connection (no pool)")
             self.conn.close()
 
+    def cancel_own_queries(self):
+        """
+        Cancels all active queries belonging to the current connection user.
+        """
+        # pid <> pg_backend_pid() ensures the app doesn't commit suicide 
+        # by killing the connection it is using to send the cancel signal.
+        cancel_all_queries = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = current_user AND state = 'active' AND pid <> pg_backend_pid();"
+
+        return self.execute_query(cancel_all_queries)
+
     def drop_table(self, table_name, schema='public', cascade=True):
         """
         Drops a table from the database safely.
