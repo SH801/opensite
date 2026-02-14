@@ -15,7 +15,7 @@ from pathlib import Path
 from psycopg2 import sql
 from pydantic import BaseModel
 from fastapi import APIRouter, Request, BackgroundTasks, Query, Form, Response, HTTPException
-from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import RedirectResponse, FileResponse, PlainTextResponse, HTMLResponse, JSONResponse
 from starlette.status import HTTP_303_SEE_OTHER
 from dotenv import load_dotenv
 from opensite.constants import OpenSiteConstants
@@ -251,7 +251,7 @@ async def get_config(request: Request, urn: str = Query(...)):
             with open(config_path, 'r', encoding='utf-8') as file:
                 config_content = file.read()
 
-    return config_content
+    return PlainTextResponse(content=config_content)
 
 @OpenSiteRouter.get('/delete')
 async def delete_config(request: Request, urn: str = Query(...)):
@@ -290,7 +290,7 @@ class ConfigItem(BaseModel):
 
 class BuildConfiguration(BaseModel):
     configurations: List[ConfigItem]
-    clippingareas: List[str] = ['United Kingdom']
+    clip: List[str] = ['United Kingdom']
     last_updated: Optional[str] = None
 
 def get_clipping_areas(request: Request):
@@ -302,7 +302,7 @@ def get_clipping_areas(request: Request):
     postgis = OpenSitePostGIS()
     if not postgis.table_exists(OpenSiteConstants.OPENSITE_OSMBOUNDARIES):
         log.warning(f"Table {OpenSiteConstants.OPENSITE_OSMBOUNDARIES} missing")
-        return []
+        return COUNTRIES_LIST
 
     clipping_query = sql.SQL("""
     SELECT DISTINCT all_names.name FROM 
@@ -324,15 +324,20 @@ async def build(request: Request):
     if not request.session.get('logged_in', False):
         return RedirectResponse(url="/login", status_code=303)
 
-    clipping_areas = get_clipping_areas(request)
+    orchestrator = request.app.state.orchestrator
 
-    return request.app.state.templates.TemplateResponse(
-        "build.html", 
-        {
-            "request": request,
-            "clippingareas": clipping_areas
-        }
-    )
+    if orchestrator.build_running:
+        return RedirectResponse(url="/processmonitor", status_code=303)
+    else:
+        clipping_areas = get_clipping_areas(request)
+
+        return request.app.state.templates.TemplateResponse(
+            "build.html", 
+            {
+                "request": request,
+                "clippingareas": clipping_areas
+            }
+        )
 
 @OpenSiteRouter.get("/getbuild")
 async def get_build(request: Request):
@@ -378,18 +383,41 @@ async def save_build(build: BuildConfiguration, request: Request):
         request.app.state.log.error(f"Failed to save build config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@OpenSiteRouter.post("/startbuild")
-async def processing_start(request: Request):
-    log = request.app.state.log
-    log.info("Starting build")
+@OpenSiteRouter.post("/buildstart")
+async def route_build_start(request: Request):
+    """Endpoint to trigger starting of build"""
+    
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
 
-    return RedirectResponse(
-            url="/processmonitor", 
-            status_code=HTTP_303_SEE_OTHER
-        )
+    request.app.state.log.info("FastAPI Endpoint: Starting build")
+
+    orchestrator = request.app.state.orchestrator
+    
+    try:
+        data = await request.json()
+    except:
+        data = None
+
+    sites = []
+    for configuration in data['configurations']:
+        if configuration['type'] in ['server', 'url']:  sites.append(configuration['value'])
+        if configuration['type'] == 'local':            sites.append(str(Path(OpenSiteConstants.CONFIGS_FOLDER) / configuration['value']))
+
+    data['sites'] = sites
+    del data['configurations']
+
+    success = orchestrator.build_start(data)
+    if success:
+        return {"status": "success"}
+    
+    return {"status": "inprogress"}
 
 @OpenSiteRouter.get("/processmonitor")
 async def processmonitor(request: Request):
+
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
@@ -397,68 +425,30 @@ async def processmonitor(request: Request):
         {"request": request}
     )
 
-@OpenSiteRouter.api_route("/nodes", methods=["GET", "POST", "PUT", "DELETE"])
-async def nodes(request: Request):
-    """
-    Retrieves node data via an asynchronous processing proxy using httpx.
-    NOTE: This is only temporary until we can probably send messages to processing queue
-    """
+@OpenSiteRouter.get("/nodes")
+async def route_build_nodes(request: Request, last_index: int = 0):
+    """Retrieves latest node data"""
 
-    PROCESSING_ENGINE_URL               = "http://127.0.0.1:8000"
-
-    log = request.app.state.log
-
-    # 1. Security Check
     if not request.session.get('logged_in', False):
         return RedirectResponse(url="/login", status_code=303)
 
-    # 2. Extract request metadata
-    body = await request.body()
-    url = f"{PROCESSING_ENGINE_URL}/nodes"
-    
-    # Filter out headers that shouldn't be forwarded
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in ['host', 'content-length']}
+    orchestrator = request.app.state.orchestrator
+    return orchestrator.build_nodes(last_index)
 
-    try:
-        async with httpx.AsyncClient() as client:
-            # We use request.method to dynamically handle GET, POST, etc.
-            proxy_resp = await client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=body,
-                params=dict(request.query_params),
-                cookies=request.cookies,
-                follow_redirects=False,
-                timeout=60.0  # Adjust based on your engine's expected response time
-            )
+@OpenSiteRouter.get("/buildstop")
+async def route_build_stop(request: Request):
+    """Endpoint to trigger stopping of build"""
 
-        # 3. Filter Hop-by-Hop Headers (Standard Proxy behavior)
-        excluded_headers = [
-            'content-encoding', 'content-length', 'transfer-encoding', 
-            'connection', 'keep-alive', 'proxy-authenticate', 'upgrade'
-        ]
-        
-        response_headers = {
-            name: value for (name, value) in proxy_resp.headers.items()
-            if name.lower() not in excluded_headers
-        }
+    if not request.session.get('logged_in', False):
+        return RedirectResponse(url="/login", status_code=303)
 
-        # 4. Return the Streamed Content
-        return Response(
-            content=proxy_resp.content,
-            status_code=proxy_resp.status_code,
-            headers=response_headers
-        )
+    request.app.state.log.info("FastAPI Endpoint: Stopping build")
 
-    except httpx.RequestError as e:
-        request.app.state.log.error(f"HTTPX Proxy error to {url}: {e}")
-        raise HTTPException(status_code=502, detail="Upstream processing engine error")
+    orchestrator = request.app.state.orchestrator
+    orchestrator.build_stop()
 
-@OpenSiteRouter.post("/stopbuild")
-async def processing_stop(request: Request):
-    log = request.app.state.log
-    log.info("Stopping build")
+    return RedirectResponse(url="/build", status_code=HTTP_303_SEE_OTHER)
+
 
 # **********************************************************
 # *************** Download files functions *****************

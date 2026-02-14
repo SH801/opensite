@@ -1,8 +1,9 @@
-import yaml
-import os
-import json
 import hashlib
+import json
 import logging
+import os
+import requests
+import yaml
 from typing import Optional, Dict, Any, List
 from opensite.model.node import Node
 from opensite.logging.opensite import LoggingBase
@@ -454,13 +455,25 @@ class Graph:
                 self.yaml_unique_ids.append(unique_id_value)
                 return True
 
-    def add_yaml(self, filepath: str):
-        """Adds a YAML file as a new sibling branch under the root."""
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"YAML not found: {filepath}")
+    def add_yaml(self, path_or_url: str):
+        """Adds a YAML file/url as a new sibling branch under the root."""
+        
+        if path_or_url.startswith(('http://', 'https://')):
+            try:
+                self.log.info(f"Streaming remote YAML: {path_or_url}")
+                response = requests.get(path_or_url, timeout=10)
+                response.raise_for_status()                
+                data = yaml.safe_load(response.text)
+                
+            except requests.exceptions.RequestException as e:
+                self.log.error(f"Network error fetching YAML: {e}")
+                raise
+        else:
+            if not os.path.exists(path_or_url):
+                raise FileNotFoundError(f"Local YAML not found: {path_or_url}")
 
-        with open(filepath, 'r') as f:
-            data = yaml.safe_load(f)
+            with open(path_or_url, 'r') as f:
+                data = yaml.safe_load(f)
 
         if not data: return False
 
@@ -484,7 +497,7 @@ class Graph:
         state_hash = hashlib.md5(state_string).hexdigest()
 
         # Create a branch container for this file
-        branch_name = self.get_branch_name(processed_data, filepath)
+        branch_name = self.get_branch_name(processed_data, path_or_url)
         branch_node = self.create_node(branch_name, node_type="branch")
         branch_node.parent = self.root
         branch_node.custom_properties['branch'] = branch_name

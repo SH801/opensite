@@ -7,10 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 import multiprocessing
 import time
-import webbrowser
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 from typing import List
 from pathlib import Path
 from opensite.logging.opensite import OpenSiteLogger
@@ -28,23 +25,27 @@ from colorama import Fore, Style, init
 
 init()
 
+def shutdown_requested():
+    """Checks whether shutdown has been requested"""
+
+    if os.path.exists("stop.signal"): return True
+    return False
+
 class OpenSiteQueue:
 
     DOWNLOAD_RETRY_INTERVAL         = 30
     DOWNLOAD_RETRY_TOTALATTEMPTS    = 10
     SHUTDOWN_TIME_DELAY             = 10
 
-    def __init__(self, graph, max_workers=None, log_level=logging.DEBUG, overwrite=False):
+    def __init__(self, graph, max_workers=None, log_level=logging.DEBUG, overwrite=False, stop_event=None):
         self.graph = graph
         self.action_groups = self.graph.get_action_groups()
         self.terminal_status = self.graph.get_terminal_status()
         self.log_level = log_level
         self.overwrite = overwrite
         self.log = OpenSiteLogger("OpenSiteQueue", self.log_level)
-        self.server_thread = None
-        self.stop_event = None
+        self.stop_event = stop_event
         self.process_started = None
-        self.shutdowntime = None
         self.shutdownstatus = None
 
         # Resource Scaling
@@ -55,80 +56,24 @@ class OpenSiteQueue:
         
         self.graph.log.info(f"Processor ready. CPU Workers: {self.cpu_workers}, I/O Workers: {self.io_workers}")
 
-    def _setup_fastapi(self):
-        """Initializes the FastAPI app with routes."""
-        app = FastAPI(title="OpenSite Graph API")
-
-        @app.get("/", response_class=HTMLResponse)
-        async def show_index():
-            return open(str(OpenSiteConstants.PROCESSING_WEB_FOLDER / "index.html"), 'r').read()
-
-        @app.get("/nodes")
-        async def get_nodes(last_index: int = 0):
-            new_logs = []
-            current_index = last_index
-            data = self.graph.to_json()
-            data['process_started'] = self.process_started
-            
-            if os.path.exists(OpenSiteConstants.LOGGING_FILE):
-                with open(OpenSiteConstants.LOGGING_FILE, "r") as f:
-                    # Skip lines we've already seen
-                    lines = f.readlines()
-                    new_lines = lines[last_index:]
-                    
-                    for line in new_lines:
-                        parts = line.split(" ", 1)
-                        timestamp = parts[0] if len(parts) > 0 else ""
-                        content = parts[1] if len(parts) > 1 else line
-                        
-                        new_logs.append({"time": timestamp, "msg": content.strip()})
-                    
-                    current_index = len(lines)
-            data['logs'] = new_logs
-            data['next_index'] = current_index
-
-            return data
-
-        @app.get("/health")
-        async def health():
-            return {"status": "running"}
-
-        return app
-
-    def start_web_server(self, host="127.0.0.1", port=8000):
-        """Starts FastAPI in a background thread."""
-        config = uvicorn.Config(self.app, host=host, port=port, log_level="error")
-        server = uvicorn.Server(config)
-
-        def run_server():
-            # The server runs until the loop is stopped
-            server.run()
-
-        self.server_thread = threading.Thread(target=run_server, daemon=True)
-        self.server_thread.start()
-        self.log.info(f"[*] FastAPI started on http://{host}:{port}")
-        self.log.info(f"[*] API Docs available at http://{host}:{port}/docs")
-
-    def shutdown(self):
+    def shutdown(self, io_exec, cpu_exec):
         """Clean exit point for the application."""
 
         if self.stop_event: self.stop_event.set()
-
-    def set_shutdown(self, status):
-        """Triggers shutdown using SHUTDOWN_TIME_DELAY"""
-
-        self.log.info(f"Setting shutdown in {self.SHUTDOWN_TIME_DELAY} seconds")
-        self.shutdowntime = (datetime.now(timezone.utc) + timedelta(seconds=self.SHUTDOWN_TIME_DELAY)).isoformat()
-        self.shutdownstatus = status
+        cpu_exec.shutdown(wait=False, cancel_futures=True)
+        io_exec.shutdown(wait=False, cancel_futures=True)
 
     def check_shutdown(self):
         """Checks whether to shutdown"""
 
-        if not self.shutdowntime: return False
+        if not self.stop_event: return False
 
-        shutdown_time = datetime.fromisoformat(self.shutdowntime)
-        return datetime.now(timezone.utc) >= shutdown_time
-
+        if self.stop_event.is_set():
+            self.log.warning("[OpenSiteQueue] Stop has been requested so quitting worker loop")
+            return True
+        
+        return False
+    
     def _fetch_filesizes_parallel(self, nodes: List[Node]):
         """Helper to fetch remote sizes for a list of nodes in parallel."""
         # Only check nodes that are downloads and don't have a cached size
@@ -346,6 +291,7 @@ class OpenSiteQueue:
                 for attempts in range(self.DOWNLOAD_RETRY_TOTALATTEMPTS):
                     success = downloader.get(node)
                     if success: break
+                    if shutdown_requested(): return 'cancelled'
                     self.graph.log.info(f"[I/O:{node.action}] {node.name} Download attempt {attempts + 1} failed - retrying after {self.DOWNLOAD_RETRY_INTERVAL} seconds")
                     time.sleep(self.DOWNLOAD_RETRY_INTERVAL)
 
@@ -371,15 +317,7 @@ class OpenSiteQueue:
         """
         self.graph.log.info(f"Starting orchestration with {self.io_workers} I/O threads and {self.cpu_workers} CPU processes.")
         
-        if preview:
-            self.process_started = datetime.now(timezone.utc).isoformat()
-            # Run processing preview system
-            self.stop_event = threading.Event()
-            self.app = self._setup_fastapi()
-            self.start_web_server()
-            # If not running in server mode, open browser
-            if not OpenSiteConstants.SERVER_BUILD:
-                webbrowser.open(f"http://localhost:8000")
+        if os.path.exists("stop.signal"): os.remove("stop.signal")
 
         # Track active futures: {future: urn}
         active_tasks = {}
@@ -400,10 +338,11 @@ class OpenSiteQueue:
 
             while True:
 
-                # Check whether look is due to be shutdown
-                if self.check_shutdown():
-                    self.shutdown()
-                    return self.shutdownstatus
+                # Check whether loop is due to be shutdown
+                if self.check_shutdown(): 
+                    self.shutdown(io_exec, cpu_exec)
+                    self.log.warning("[OpenSiteQueue] Quitting main worker loop")
+                    return
 
                 # 1. Get nodes that are ready to run (Dependencies met)
                 ready_nodes = self.get_runnable_nodes(actions=None, checksizes=True)
@@ -454,18 +393,17 @@ class OpenSiteQueue:
                     unfinished = [n for n in self.graph.find_nodes_by_props() 
                                  if n.get('status') not in ['processed', 'failed']]
                     
-                    if not self.shutdowntime:
-                        if not unfinished:
-                            self.graph.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
-                            self.graph.log.info(f"{Fore.GREEN}{'*'*19} PROCESSING COMPLETE {'*'*20}{Style.RESET_ALL}")
-                            self.graph.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
-                            self.set_shutdown(True)
-                        else:
-                            if unfinishednodes == len(unfinished):
-                                self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unfinished")
-                                self.set_shutdown(False)
-
-                        unfinishednodes = len(unfinished)
+                    if not unfinished:
+                        self.graph.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
+                        self.graph.log.info(f"{Fore.GREEN}{'*'*19} PROCESSING COMPLETE {'*'*20}{Style.RESET_ALL}")
+                        self.graph.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
+                        return True
+                    else:
+                        if unfinishednodes == len(unfinished):
+                            self.graph.log.warning(f"Queue stalled. {len(unfinished)} nodes unfinished")
+                            return False
+                        
+                    unfinishednodes = len(unfinished)
 
                 # Wait for at least one task to complete
                 # This is the "Pipelining Engine" - it yields as soon as any task finishes
@@ -498,7 +436,7 @@ class OpenSiteQueue:
 
                 # Tiny sleep to prevent high CPU usage on the main thread
                 time.sleep(0.05)
-
+    
     def get_runnable_nodes(self, actions=None, checksizes=True) -> List[Node]:
         """
         Finds nodes ready for execution. 

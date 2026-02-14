@@ -2,6 +2,7 @@ import os
 import secrets
 import json
 import shutil
+import logging
 import time
 import os
 import time
@@ -49,25 +50,124 @@ class OpenSiteApplication:
         self.server = None
         self.serverport = None
         self.should_exit = False
-        self.processing_start = time.time()
-        self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
-        self.log.info(f"{Fore.GREEN}{'*'*17} APPLICATION INITIALIZED {'*'*18}{Style.RESET_ALL}")
-        self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
-
+        self.processing_start = None
+        self.processing_stop = None
+        self.queue = None
+        self.graph = None
+        self.processing_thread = None
+        self.stop_event = threading.Event()
+        self.build_running = False
+        self.app.state.orchestrator = self
         folder_app = Path('opensite') / 'app'
         folder_static = str(folder_app / 'static')
         folder_templates = str(folder_app / 'templates')
         folder_layers = str(OpenSiteConstants.OUTPUT_LAYERS_FOLDER)
+
+        self.init_environment()
+
         self.app.mount("/static", StaticFiles(directory=folder_static), name="static")
         self.app.mount("/outputfiles", StaticFiles(directory=folder_layers), name="outputfiles")
         self.app.add_middleware(ForceDownloadMiddleware)
         self.app.state.templates = Jinja2Templates(directory=folder_templates)
         self.app.state.log = self.log
         self.app.state.processing_start = self.processing_start
+        self.app.state.orchestrator = self
         self.app.include_router(OpenSiteRouter)
 
-        for route in self.app.routes:
-            self.log.info(f"Route registered: {route.path}")
+        self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
+        self.log.info(f"{Fore.GREEN}{'*'*17} APPLICATION INITIALIZED {'*'*18}{Style.RESET_ALL}")
+        self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
+
+    def build_start(self, build_config=None):
+        """Triggers the long-running process in its own thread."""
+        if self.processing_thread and self.processing_thread.is_alive():
+            self.log.warning("Build already in progress!")
+            return False
+
+        self.log.info("[OpenSiteApplication] Starting build...")
+        self.stop_event.clear()
+        self.build_running = True
+        self.processing_thread = threading.Thread(target=self.build_run, args=(build_config,))
+        self.processing_thread.start()
+        return True
+
+    def build_run(self, config_json: dict):
+        """The actual multi-hour logic."""
+        try:
+
+            self.processing_start = None
+            self.processing_stop = None
+
+            if config_json['purgeall']:
+                self.log.info("Build config triggering purgeall and reinitialisation of environment")
+                self.purgeall()
+                self.init_environment()
+
+            # Initialise CLI to get CKAN url and set up processing graph using CKAN
+            cli = OpenSiteCLI(log_level=self.log_level) 
+            ckan = OpenSiteCKAN(cli.get_current_value('ckan'))
+            ckan.load()
+            self.graph = OpenSiteGraph( cli.get_overrides(), \
+                                        cli.get_outputformats(), \
+                                        config_json['clip'], \
+                                        cli.get_snapgrid(), \
+                                        log_level=self.log_level)
+            self.graph.add_yamls(config_json['sites'])
+            self.graph.update_metadata(ckan)
+            self.graph.explode()
+
+            # Run processing queue
+            self.queue = OpenSiteQueue(self.graph, log_level=self.log_level, overwrite=False, stop_event=self.stop_event)
+            self.processing_start = time.time()
+            self.queue.run()
+            self.log.error("Process has stopped")
+            self.processing_stop = time.time()
+
+        except Exception as e:
+            self.log.error(f"Pipeline failed: {e}")
+
+    def build_nodes(self, last_index=0):
+        """Gets latest state of processing nodes"""
+
+        new_logs = []
+        current_index = last_index
+
+        if not self.graph: return {}
+
+        data = self.graph.to_json()
+        data['process_started'] = self.processing_start
+        data['process_stopped'] = self.processing_stop
+
+        if os.path.exists(OpenSiteConstants.LOGGING_FILE):
+            with open(OpenSiteConstants.LOGGING_FILE, "r") as f:
+                # Skip lines we've already seen
+                lines = f.readlines()
+                new_lines = lines[last_index:]
+                
+                for line in new_lines:
+                    parts = line.split(" ", 1)
+                    timestamp = parts[0] if len(parts) > 0 else ""
+                    content = parts[1] if len(parts) > 1 else line
+                    
+                    new_logs.append({"time": timestamp, "msg": content.strip()})
+                
+                current_index = len(lines)
+        data['logs'] = new_logs
+        data['next_index'] = current_index
+
+        return data
+
+    def build_stop(self):
+        """Sends a stop signal to the active worker."""
+        self.log.info("[OpenSiteApplication] Stop signal received. Signalling worker...")
+        self.stop_event.set()
+
+        with open("stop.signal", "w") as f:
+            f.write("STOP")
+
+        self.build_running = False
+        self.processing_start = None
+        self.processing_stop = None
 
     def ensure_secret_key(self):
         env_path = ".env"
@@ -124,7 +224,8 @@ class OpenSiteApplication:
             app=self.app, 
             host="0.0.0.0", 
             port=self.serverport, 
-            log_level=self.log_level,
+            log_level="debug",
+            access_log=False,
         )
         self.server = uvicorn.Server(config)
         self.server.install_signal_handlers = False
@@ -151,6 +252,7 @@ class OpenSiteApplication:
         self.log.info(f"Stopping headless server on port {self.serverport}")
         if self.server:
             self.server.should_exit = True
+        self.build_stop()
         sys.exit(0)
 
     def show_elapsed_time(self):
@@ -291,6 +393,7 @@ class OpenSiteApplication:
         cli = OpenSiteCLI(log_level=self.log_level) 
 
         if not cli.get_server():
+            tables_purged = False
             if cli.purgedb:
                 print(f"\n{Fore.RED}{Style.BRIGHT}{'='*60}")
                 print(f"WARNING: You are about to delete all opensite tables")
@@ -300,6 +403,7 @@ class OpenSiteApplication:
                 confirm = input(f"Type {Style.BRIGHT}'yes'{Style.RESET_ALL} to delete all OpenSite data: ").strip().lower()
                 if confirm == 'yes':
                     self.purgedb()
+                    tables_purged = True
                 else:
                     self.log.warning("Purge aborted. No tables were harmed.")
 
@@ -312,10 +416,11 @@ class OpenSiteApplication:
                 confirm = input(f"Type {Style.BRIGHT}'yes'{Style.RESET_ALL} to delete all downloads and OpenSite data: ").strip().lower()
                 if confirm == 'yes':
                     self.purgeall()
+                    tables_purged = True
                 else:
                     self.log.warning("Purge aborted. No files or tables were harmed.")
 
-        self.init_environment()
+            if tables_purged: self.init_environment()
 
         if cli.get_server():
             self.start(port=cli.get_server())

@@ -78,6 +78,10 @@ class ArcGISDownloader(DownloadBase):
             geojson = {"type": "FeatureCollection", "features": []}
 
             while records_downloaded < total_records:
+                if self.shutdown_requested(): 
+                    self.log.warning("Shutdown requested, quitting early")
+                    return False
+
                 query_params = {
                     "f": 'geojson',
                     "outFields": '*',

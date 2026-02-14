@@ -157,12 +157,51 @@ Process monitor
             font-size: 1rem;
         }         
 
+        .loading-overlay {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease; 
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #2ecc71; 
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
     </style>
 
 <div class="row" style="height:100%;">
 
 {% raw %}
 
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top:20px;">Connecting to data pipeline...</p>
+    </div>
 
     <div id="ui-overlay">
 
@@ -304,9 +343,10 @@ Process monitor
         let lastScrollTop = null;
         let colorStep = 0;
         let serverStartTime = null;
+        let serverStopTime = null;
         let finalDuration = null;
         let lastLogIndex = 0;
-        let isPipelineActive = true;
+        let isPipelineActive = false;
 
         // Set up basic vis network ready to be populated via JSON through refreshPipeline
         const nodes         = new vis.DataSet([]);
@@ -327,6 +367,15 @@ Process monitor
         setInterval(refreshPipeline, 5000);
         setInterval(pulseProcessingNodes, 500);
         setInterval(updateGlobalTimer, 1000);
+
+        function hideLoadingSpinner() {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay && !overlay.classList.contains('hidden')) {
+                overlay.classList.add('hidden');
+                // Optional: Remove from DOM entirely after fade transition
+                setTimeout(() => overlay.style.display = 'none', 500);
+            }
+        }
 
         function centerView() {
             if (network) network.fit()
@@ -365,9 +414,9 @@ Process monitor
         function updateGlobalTimer() {
             if (!serverStartTime) return;
 
-            if (!isPipelineActive && !finalDuration) {
-                finalDuration = Math.max(0, Math.floor((Date.now() - serverStartTime) / 1000));
-                
+            if (serverStopTime) {
+                finalDuration = Math.max(0, Math.floor((serverStopTime - serverStartTime) / 1000));
+
                 const formatted = formatSeconds(finalDuration);
                 const timerElement = document.getElementById('timer-val');
                 
@@ -379,7 +428,7 @@ Process monitor
                 document.getElementById('total-time').querySelector('span').innerText = formatted;
                 return; 
             }
-
+            
             let displaySeconds = finalDuration || Math.max(0, Math.floor((Date.now() - serverStartTime) / 1000));
             document.getElementById('timer-val').innerText = formatSeconds(displaySeconds);
         }
@@ -585,6 +634,7 @@ Process monitor
             const tempNodes = [];
             const tempEdges = [];
 
+            console.log(rawData);
             if (rawData.children && rawData.children.length > 0) {
                 rawData.children.forEach(branch => parsePipelineData(branch, tempNodes, tempEdges));
             } else if (rawData.name) {
@@ -626,7 +676,6 @@ Process monitor
             const allNodes = nodes.get();
             const counts = { processed: 0, processing: 0, unprocessed: 0, failed: 0 };
             allNodes.forEach(n => { if(counts.hasOwnProperty(n.raw.status)) counts[n.raw.status]++; });
-            isPipelineActive = (counts.processing > 0 || counts.unprocessed > 0);
             updateMonitorUI(allNodes);
             
             document.getElementById('count-processed').innerText = `${counts.processed}`;
@@ -676,18 +725,30 @@ Process monitor
 
         }
 
+        function setPipelineActive() {
+            if (!isPipelineActive) {
+                isPipelineActive = true;
+                hideLoadingSpinner();
+            }
+        }
+
         async function refreshPipeline() {
 
             const response = await fetch(`nodes?last_index=${lastLogIndex}`);
             const rawData = await response.json();
             
-            if (rawData.process_started) serverStartTime = new Date(rawData.process_started).getTime();
+            if (rawData.process_started) serverStartTime = new Date(rawData.process_started * 1000).getTime();
+            if (rawData.process_stopped) serverStopTime = new Date(rawData.process_stopped * 1000).getTime();
 
-            if (!isGraphInitialized) {
-                initGraph(rawData);
-                setTimeout(() => network.fit(), 500);
-            } else {
-                updateGraph(rawData);
+            if (serverStartTime) setPipelineActive();
+
+            if (isPipelineActive) {
+                if (!isGraphInitialized) {
+                    initGraph(rawData);
+                    setTimeout(() => network.fit(), 500);
+                } else {
+                    updateGraph(rawData);
+                }
             }
         }
  
@@ -696,26 +757,13 @@ Process monitor
 {% endraw %}
 
     <div class="col-lg-12" style="position:fixed; bottom:10px">
-        <a href="/processingstop" data-toggle="modal" data-target="#stopProcessingModal" class="btn btn-lg btn-danger btn-icon-split">
+        <a href="/buildstop" data-toggle="modal" data-target="#stopProcessingModal" class="btn btn-lg btn-danger btn-icon-split">
             <span class="icon text-white-50">
                 <i class="fa fa-stop-circle"></i>
             </span>
             <span class="text">Stop processing</span>
         </a>
     </div>
-
-    {% if hide_stop == False %}
-
-        <div class="col-lg-12" >
-            <a href="/processingstop" data-toggle="modal" data-target="#stopProcessingModal" class="btn btn-lg btn-danger btn-icon-split">
-                <span class="icon text-white-50">
-                    <i class="fa fa-stop-circle"></i>
-                </span>
-                <span class="text">Stop processing</span>
-            </a>
-        </div>
-
-    {% endif %}
 
 </div>
 

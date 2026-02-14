@@ -105,6 +105,10 @@ class WFSDownloader(DownloadBase):
             dataframe, start_index, records_downloaded = None, 0, 0
 
             while records_downloaded < total_records:
+                if self.shutdown_requested(): 
+                    self.log.warning("Shutdown requested, quitting early")
+                    return False
+
                 records_to_download = min(batch_size, total_records - records_downloaded)
                 
                 wfs_request_url = Request('GET', getfeature_url, headers=self.headers, params={

@@ -147,7 +147,7 @@ Configurations
             <div class="card-body">
                 <div class="form-group" v-if="availableGroups.length" style="padding-bottom: 12px;">
                     <div class="flex">
-                        <select class="template-select" v-model="selectedGroupKey">
+                        <select class="template-select" v-model="selectedGroupKey" style="width:auto;">
                             <option value="">Choose group</option>
                             <option v-for="g in availableGroups" :key="g.key" :value="g.key">{{ g.title }}</option>
                         </select>
@@ -187,7 +187,7 @@ Configurations
                         <div v-show="isExpanded(group.id)" style="padding: 15px; border-top: 1px solid #eee;">
 
                             <div v-if="sortedDatasetsForGroup(group.key).length > 0" style="margin-bottom: 12px;">
-                                <select class="template-select" v-model="group.tempDs" @change="addDatasetToGroup(gIdx)">
+                                <select class="template-select" v-model="group.tempDs" @change="addDatasetToGroup(gIdx)" style="width:auto;">
                                     <option value="" disabled selected>Add dataset</option>
                                     <option v-for="ds in sortedDatasetsForGroup(group.key)" :key="ds.prefix" :value="ds">
                                         {{ ds.cleanTitle }}

@@ -20,6 +20,12 @@ class DownloadBase:
         self.shared_metadata = shared_metadata if shared_metadata is not None else {}
         self.base_path = ""
 
+    def shutdown_requested(self):
+        """Checks whether shutdown has been requested"""
+
+        if os.path.exists("stop.signal"): return True
+        return False
+    
     def ensure_output_dir(self, file_path):
         """Utility to make sure the destination exists."""
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
@@ -47,6 +53,11 @@ class DownloadBase:
         headers = {'Accept-Encoding': 'identity'}
         
         try:
+
+            if self.shutdown_requested(): 
+                self.log.warning("Shutdown requested, quitting early")
+                return None
+
             # 1. Try HEAD request first
             response = requests.head(
                 url, 
@@ -141,6 +152,9 @@ class DownloadBase:
                 
                 with open(tmp_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=1024 * 64):
+                        if self.shutdown_requested(): 
+                            self.log.warning("Shutdown requested, quitting early")
+                            return None
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)

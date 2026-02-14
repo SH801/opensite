@@ -479,7 +479,7 @@ class OpenSiteGraph(Graph):
 
         # Build a unified lookup map for both Groups and Datasets
         ckan_lookup = {}
-        
+
         for group_name, data in model.items():
             # Add the group itself to the lookup (if it's not the 'default' catch-all)
             # This allows folders in your graph to get their Titles from CKAN groups

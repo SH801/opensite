@@ -14,8 +14,6 @@ Build
 
 <div id="app">
 
-<form action="/startbuild" method="POST" enctype="application/x-www-form-urlencoded" >
-
     <div class="grid">
 
         <div class="card shadow">
@@ -77,7 +75,7 @@ Build
                             :class="['badge', getBadgeClass(conf.type), 'border-0 p-1 mr-2 mb-2 shadow-sm d-inline-flex align-items-center rounded-pill']">
                             
                             <div class="text-left px-2">
-                                <div class="text-white" style="font-size: 0.8rem; font-weight: 500;">
+                                <div class="text-white" :title="conf.value" style="font-size: 0.8rem; font-weight: 500;">
                                     {{ conf.name }}
                                 </div>
                             </div>
@@ -148,45 +146,39 @@ Build
             </div>
         </div>
 
+        <div class="card shadow mb-2 full">
+            <div class="card-header py-3 bg-danger text-white">
+                <h6 class="m-0 font-weight-bold">Purge existing data</h6>
+            </div>
+            <div class="card-body">
+                <p class="m-0 mb-2 text-secondary">Click checkbox below to delete existing dataset downloads and database tables and rebuild layers from scratch.</p>
+                <p> <i>Note: this may considerably increase time to generate final layers.</i></p>
 
-            <div class="card shadow mb-2 full">
-                <div class="card-header py-3 bg-danger text-white">
-                    <h6 class="m-0 font-weight-bold">Purge existing data</h6>
-                </div>
-                <div class="card-body">
-                    <p class="m-0 mb-2 text-secondary">Click checkbox below to delete existing dataset downloads and database tables and rebuild layers from scratch.</p>
-                    <p> <i>Note: this may considerably increase time to generate final layers.</i></p>
-
-                    <div>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                            <div class="input-group-text fm-4">
-                                <input id="purge-all" name="purge-all" type="checkbox" aria-label="Purge existing data">
-                            </div>
-                            </div>
-                            <label class="form-check-label form-control" for="purge-all">
-                                <b>Purge existing downloads and database tables</b>
-                            </label>
+                <div>
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                        <div class="input-group-text fm-4">
+                            <input v-model="purgeAll" id="purge-all" name="purge-all" type="checkbox" aria-label="Purge existing data">
                         </div>
+                        </div>
+                        <label class="form-check-label form-control" for="purge-all">
+                            <b>Purge existing downloads and database tables</b>
+                        </label>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="row mt-2">
-                <div class="col-lg-12">
-                    <button class="btn btn-success btn-lg btn-icon-split" type="submit">
-                        <span class="icon text-white-50">
-                            <i class="fa fa-play-circle"></i>
-                        </span>
-                        <span class="text">Start generating constraint layers</span>
-                    </button>
-                </div>
-            </div>
-
-
+        <div class="full" class="margin:0;padding-left:0;">
+                <button v-if="configurations.length > 0" class="btn btn-success btn-lg btn-icon-split" type="button" @click="startBuild">
+                    <span class="icon text-white-50">
+                        <i class="fa fa-play-circle"></i>
+                    </span>
+                    <span class="text">Start generating constraint layers</span>
+                </button>
+        </div>
 
     </div>
-</form>
 
 </div>
 
@@ -222,6 +214,7 @@ createApp({
         const allAreas = ref(rawClippingAreas);
         const searchQuery = ref('');
         const showPopup = ref(false);
+        const purgeAll = ref(false);
 
         const filteredAreas = computed(() => {
             const query = searchQuery.value.toLowerCase();
@@ -296,9 +289,17 @@ createApp({
                     data.result.results.forEach(pkg => {
                         const group = (pkg.groups && pkg.groups.length > 0) ? pkg.groups[0] : { name: 'default', title: 'Default' };
                         
+                        // Find the actual resource URL for the YAML file
+                        const ymlResource = pkg.resources ? pkg.resources.find(r => r.format === OPEN_SITE_ENERGY_YML) : null;
+
                         if (group.name.includes('custom') || group.title === 'Custom configurations') {
-                            if (pkg.resources && pkg.resources.some(r => r.format === OPEN_SITE_ENERGY_YML)) {
-                                configs.push(pkg);
+                            if (ymlResource && ymlResource.url) {
+                                // Swap out the ID logic: the "id" of this config entry is now the URL itself
+                                configs.push({
+                                    title: pkg.title || pkg.name,
+                                    value: ymlResource.url, // This will be the value in your popup
+                                    name: pkg.name
+                                });
                             }
                         } else {
                             if (!results[group.name]) results[group.name] = { group_title: group.title, prefixes: {} };
@@ -309,7 +310,7 @@ createApp({
                                     prefix: prefix,
                                     cleanTitle: parts.length > 1 ? parts.slice(0, -1).join(' - ') : parts[0],
                                     children: [],
-                                    childTitles: [] // New: This stores the "National Parks - England" strings
+                                    childTitles: [] 
                                 };
                             }
                             results[group.name].prefixes[prefix].children.push(pkg.name);
@@ -318,8 +319,9 @@ createApp({
                     });
 
                     library.value = results;
-                    customConfigs.value = configs.sort((a,b) => (a.title || a.name).localeCompare(b.title || b.name));
-                    lastSyncedUrl.value = currentAttemptUrl; // Success! Update the tracking ref
+                    // Sort by title
+                    customConfigs.value = configs.sort((a,b) => a.title.localeCompare(b.title));
+                    lastSyncedUrl.value = currentAttemptUrl; 
                 }
             } catch (e) {
                 console.error("Connection error:", e);
@@ -335,10 +337,10 @@ createApp({
 
             let type, value, name;
 
-            if (typeof selected === 'object' && selected.id) {
+            if (typeof selected === 'object' && selected.value) {
                 // Source: sortedCustomConfigs
                 type = 'server';
-                value = selected.id;
+                value = selected.value;
                 name = selected.name; // From conf.name
             } else {
                 // Source: sortedLocalConfigs (where value is just the ID)
@@ -367,20 +369,32 @@ createApp({
         };
 
         const addURLConfiguration = async () => {
-            const url = configurationUrl.value.trim();
+            const urlString = configurationUrl.value.trim();
 
-            if (url.startsWith('https://')) {
+            if (urlString.startsWith('https://')) {
                 const isDuplicate = configurations.value.some(conf => 
-                    conf.type === 'url' && conf.value === url
+                    conf.type === 'url' && conf.value === urlString
                 );
 
                 if (!isDuplicate) {
-                    configurations.value.push({ 
-                        type: 'url', 
-                        value: url, 
-                        name: url // For URLs, the name is usually the URL itself
-                    });
-                    configurationUrl.value = '';
+                    try {
+                        // Create a URL object to parse the string easily
+                        const urlObj = new URL(urlString);
+                        // Get the last part of the pathname (the filename)
+                        let basename = urlObj.pathname.split('/').pop();
+                        const domain = urlObj.hostname;
+                        // Fallback in case the URL ends in a slash (e.g., .../configs/)
+                        if (!basename) basename = urlObj.hostname;
+
+                        configurations.value.push({ 
+                            type: 'url', 
+                            value: urlString, 
+                            name: 'URL - ' + domain + '.../' + basename 
+                        });
+                        configurationUrl.value = '';
+                    } catch (e) {
+                        console.error("Invalid URL format", e);
+                    }
                 }
             }
         };
@@ -390,9 +404,17 @@ createApp({
                 const response = await fetch('/getbuild');
                 const data = await response.json();
                 configurations.value = data.configurations || [];
-                selectedClippingAreas.value = data.clippingareas || [];
+                selectedClippingAreas.value = data.clip || [];
             } catch (e) { console.error("Load failed", e); }
         };
+
+        const getBuildConfig = () => {
+            return {
+                configurations: configurations.value,
+                clip: selectedClippingAreas.value,
+                purgeall: purgeAll.value,
+            }
+        }
 
         const saveBuildData = async () => {
             try {
@@ -401,10 +423,7 @@ createApp({
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        configurations: configurations.value,
-                        clippingareas: selectedClippingAreas.value
-                    })
+                    body: JSON.stringify(getBuildConfig())
                 });
 
                 if (response.ok) {
@@ -412,6 +431,24 @@ createApp({
                 }
             } catch (error) {
                 console.error("Error saving build:", error);
+            }
+        };
+
+        const startBuild = async () => {
+            try {
+                const response = await fetch('/buildstart', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(getBuildConfig())
+                });
+
+                if (response.ok) {
+                    window.location.href = '/processmonitor';
+                }
+            } catch (error) {
+                console.error("Error starting build:", error);
             }
         };
 
@@ -446,7 +483,9 @@ createApp({
             filteredAreas,
             selectedClippingAreas,
             selectArea,
-            selectedArea
+            selectedArea,
+            startBuild,
+            purgeAll,
        };
     }
 }).mount('#app');
