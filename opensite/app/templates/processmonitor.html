@@ -200,7 +200,7 @@ Process monitor
 
     <div id="loading-overlay" class="loading-overlay">
         <div class="spinner"></div>
-        <p style="margin-top:20px;">Connecting to data pipeline...</p>
+        <p style="margin-top:20px;">Starting data pipeline...</p>
     </div>
 
     <div id="ui-overlay">
@@ -347,6 +347,7 @@ Process monitor
         let finalDuration = null;
         let lastLogIndex = 0;
         let isPipelineActive = false;
+        let isPipelineFinished = false;
 
         // Set up basic vis network ready to be populated via JSON through refreshPipeline
         const nodes         = new vis.DataSet([]);
@@ -732,6 +733,14 @@ Process monitor
             }
         }
 
+        function setPipelineFinished() {
+            if (!isPipelineFinished) {
+                document.getElementById('build-stop').style.display = 'none';
+                document.getElementById('build-setup').style.display = 'inline-block';
+                isPipelineFinished = true;
+            }
+        }
+
         async function refreshPipeline() {
 
             const response = await fetch(`nodes?last_index=${lastLogIndex}`);
@@ -741,6 +750,7 @@ Process monitor
             if (rawData.process_stopped) serverStopTime = new Date(rawData.process_stopped * 1000).getTime();
 
             if (serverStartTime) setPipelineActive();
+            if (serverStopTime) setPipelineFinished();
 
             if (isPipelineActive) {
                 if (!isGraphInitialized) {
@@ -757,12 +767,20 @@ Process monitor
 {% endraw %}
 
     <div class="col-lg-12" style="position:fixed; bottom:10px">
-        <a href="/buildstop" data-toggle="modal" data-target="#stopProcessingModal" class="btn btn-lg btn-danger btn-icon-split">
+        <a href="/buildstop" id="build-stop" data-toggle="modal" data-target="#stopProcessingModal" class="btn btn-lg btn-danger btn-icon-split">
             <span class="icon text-white-50">
                 <i class="fa fa-stop-circle"></i>
             </span>
             <span class="text">Stop processing</span>
         </a>
+
+        <a href="/build" id="build-setup" class="btn btn-lg btn-action btn-icon-split" style="display:none;">
+            <span class="icon text-white-50">
+                <i class="fa fa-play-circle"></i>
+            </span>
+            <span class="text">Return to build setup</span>
+        </a>
+
     </div>
 
 </div>

@@ -92,11 +92,15 @@ class OpenSiteApplication:
         return True
 
     def build_run(self, config_json: dict):
-        """The actual multi-hour logic."""
+        """Run main build"""
         try:
 
             self.processing_start = None
             self.processing_stop = None
+
+            # Only use logging file for each individual build
+            if Path(OpenSiteConstants.LOGGING_FILE).exists():
+                os.remove(OpenSiteConstants.LOGGING_FILE)
 
             if config_json['purgeall']:
                 self.log.info("Build config triggering purgeall and reinitialisation of environment")
@@ -120,7 +124,8 @@ class OpenSiteApplication:
             self.queue = OpenSiteQueue(self.graph, log_level=self.log_level, overwrite=False, stop_event=self.stop_event)
             self.processing_start = time.time()
             self.queue.run()
-            self.log.error("Process has stopped")
+            self.log.info("Processing queue has completed")
+            self.build_running = False
             self.processing_stop = time.time()
 
         except Exception as e:
@@ -461,13 +466,15 @@ class OpenSiteApplication:
         success = False
         if not cli.get_graphonly(): 
             
+            self.processing_start = time.time()
             success = queue.run(preview=cli.get_preview())
+            self.processing_stop = time.time()
 
-        # Show elapsed time at end
-        self.show_elapsed_time()
+            # Show elapsed time at end
+            self.show_elapsed_time()
 
-        if success:
-            self.show_success_message(cli.get_outputformats())
+            if success:
+                self.show_success_message(cli.get_outputformats())
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

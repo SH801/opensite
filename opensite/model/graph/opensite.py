@@ -849,7 +849,7 @@ class OpenSiteGraph(Graph):
                 # --- LAYER 3: Runner ---
                 run_node = self.create_node(
                     name=f"osm-runner--{osm_url}",
-                    title=f"Run OSM Export Tool - {osm_url_basename}",
+                    title=f"Run osm-export-tool to create datasets - {osm_url_basename}",
                 )
                 run_node.action = 'run'
                 run_node.node_type = 'osm-runner'

@@ -293,7 +293,7 @@ class OpenSitePostGIS(PostGISBase):
         # Base ogr2ogr Command
         cmd = [
             "ogr2ogr",
-            spatial_data_file,
+            str(spatial_data_file),
             self.get_ogr_connection_string(),
             "-overwrite",
             "-nln", spatial_data_layer_name,
