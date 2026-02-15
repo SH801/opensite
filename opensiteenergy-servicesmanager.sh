@@ -11,7 +11,7 @@ while true
             sudo sed -i "s/server_name _;/server_name $DOMAIN;/" /etc/nginx/sites-available/001-opensiteenergy-live.conf
             sudo /usr/sbin/nginx -s reload
             sudo rm /usr/src/opensiteenergy/log-certbot.txt
-            sudo certbot --apache --non-interactive --agree-tos --email info@${DOMAIN} --domains ${DOMAIN} | sudo tee /usr/src/opensiteenergy/log-certbot.txt >/dev/null
+            sudo certbot --nginx --non-interactive --agree-tos --redirect --keep-until-expiring --email info@${DOMAIN} --domains ${DOMAIN} | sudo tee /usr/src/opensiteenergy/log-certbot.txt >/dev/null
             if grep -q 'Successfully deployed certificate' /usr/src/opensiteenergy/log-certbot.txt; then
                 sudo cp /usr/src/opensiteenergy/DOMAIN /usr/src/opensiteenergy/DOMAINACTIVE
                 sudo /usr/bin/systemctl restart tileserver.service

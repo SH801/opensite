@@ -112,7 +112,7 @@ sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
 git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing Python-related software and libraries</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing Python-related software and libraries...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 
 sudo apt install virtualenv pip libgdal-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/opensiteenergy/opensiteenergy.log
@@ -154,10 +154,9 @@ echo '********* STAGE 5: Installing nodejs and frontail **********' >> /usr/src/
 echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 
 sudo apt update -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-sudo apt install curl -y | tee -a /usr/src/openwindenergy/log.txt
+sudo apt install curl -y | tee -a /usr/src/opensiteenergy/log.txt
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install netcat-traditional nodejs -y | tee -a /usr/src/openwindenergy/log.txt
-# sudo apt install npm -y | tee -a /usr/src/openwindenergy/log.txt
+sudo apt install netcat-traditional nodejs -y | tee -a /usr/src/opensiteenergy/log.txt
 sudo npm i frontail -g 2>&1 | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
 echo "[Unit]
@@ -263,7 +262,7 @@ After=network.target
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/usr/src/opensiteenergy/
+WorkingDirectory=/usr/src/opensiteenergy
 ExecStart=/usr/src/opensiteenergy/run-tileserver-gl.sh
 Restart=on-failure
 Environment=PORT=8080
