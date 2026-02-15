@@ -184,6 +184,9 @@ class OpenSiteOutputWeb(OutputBase):
 
             json.dump(config_json, open(str(OpenSiteConstants.TILESERVER_CONFIG_FILE), 'w', encoding='utf-8'), indent=4)
 
+            # Wait till very end before copying main web index page to FastAPI templates folder
+            shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
+
             self.log.info("Triggering tileserver-gl to restart so it loads new config and mbtiles")
             Path("RESTARTSERVICES").write_text("RESTART")
 
@@ -213,9 +216,8 @@ class OpenSiteOutputWeb(OutputBase):
 
             self.log.info("Outputting main web page")
 
-            # Copy main web index page to output folder and FastAPI templates folder
+            # Copy main web index page to output folder
             shutil.copy('tileserver/index.html', str(Path(OpenSiteConstants.OUTPUT_FOLDER) / self.node.output))
-            shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
 
             self.log.info("Outputting tileserver mbtiles stylesheets")
 

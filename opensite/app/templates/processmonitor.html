@@ -635,7 +635,6 @@ Process monitor
             const tempNodes = [];
             const tempEdges = [];
 
-            console.log(rawData);
             if (rawData.children && rawData.children.length > 0) {
                 rawData.children.forEach(branch => parsePipelineData(branch, tempNodes, tempEdges));
             } else if (rawData.name) {
