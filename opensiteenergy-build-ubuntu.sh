@@ -77,23 +77,18 @@ sudo apt update -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 1: Finished running initial apt update **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 
-# Quickly install Apache2 so user has something to see that updates them with progress
+# Quickly install nginx so user has something to see that updates them with progress
 
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
-echo '********* STAGE 2: Installing Apache2 **********' >> /usr/src/opensiteenergy/opensiteenergy.log
+echo '********* STAGE 2: Installing nginx **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 mkdir /var/www
 mkdir /var/www/html
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Beginning installation of Open Site Energy...</pre></body></html>' | sudo tee /var/www/html/index.html
-sudo apt install apache2 libapache2-mod-wsgi-py3 -y
-sudo apt install certbot python3-certbot-apache -y
-sudo a2enmod headers
-sudo a2enmod proxy_http
-sudo a2enmod rewrite
-sudo a2enmod proxy_wstunnel
-sudo apache2ctl restart
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Beginning installation of Open Site Energy...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
+sudo apt install nginx certbot python3-certbot-nginx -y
+sudo systemctl restart nginx
 
-echo '********* STAGE 2: Finished installing Apache2 **********' >> /usr/src/opensiteenergy/opensiteenergy.log
+echo '********* STAGE 2: Finished installing nginx **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 
 # Install git
@@ -101,7 +96,7 @@ echo '********* STAGE 2: Finished installing Apache2 **********' >> /usr/src/ope
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 3: Installing git **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing git...</pre></body></html>' | sudo tee /var/www/html/index.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing git...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 sudo apt install git -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
 echo '********* STAGE 3: Finished installing git **********' >> /usr/src/opensiteenergy/opensiteenergy.log
@@ -112,7 +107,7 @@ echo '********* STAGE 3: Finished installing git **********' >> /usr/src/opensit
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 4: Installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo and setting up admin site...</pre></body></html>' | sudo tee /var/www/html/index.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo and setting up admin site...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
 git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
@@ -121,17 +116,8 @@ virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/op
 source /usr/src/opensiteenergy/venv/bin/activate
 python3 -m pip install -U pip | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 python3 -m pip install -U setuptools wheel twine check-wheel-contents | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install python-dotenv | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install psycopg2-binary | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install Jinja2 | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install flask | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install validators | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+pip install opensiteenergy/requirements.txt | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 cp /usr/src/opensiteenergy/.env-template /usr/src/opensiteenergy/.env
-echo 'SERVER_BUILD=True' >> /usr/src/opensiteenergy/.env
-mkdir /usr/src/opensiteenergy/build
-mkdir /usr/src/opensiteenergy/build/output
-mkdir /usr/src/opensiteenergy/build/tileserver
-echo "./opensiteenergy-build-ubuntu.sh" >> /usr/src/opensiteenergy/PROCESSING
 sudo chown -R www-data:www-data /usr/src/opensiteenergy
 sudo sed -i "s/.*TILESERVER_URL.*/    TILESERVER_URL\=\/tiles/" /usr/src/opensiteenergy/.env
 
@@ -159,7 +145,7 @@ echo '********* STAGE 4: Finished installing Open Site Energy source code ******
 
 echo '********* STAGE 5: Installing nodejs and frontail **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing nodejs, npm and frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing nodejs, npm and frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 
 sudo apt update -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo apt install curl -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
@@ -192,13 +178,10 @@ sudo systemctl restart frontail.service
 sudo echo "
 SERVER_USERNAME=${SERVER_USERNAME}
 SERVER_PASSWORD=${SERVER_PASSWORD}
-" > /usr/src/opensiteenergy/.env-server
+" >> /usr/src/opensiteenergy/.env
 
-sudo cp /usr/src/opensiteenergy/apache/001-default-build-post.conf /etc/apache2/sites-available/.
-sudo cp /usr/src/opensiteenergy/apache/002-default-build-pre.conf /etc/apache2/sites-available/.
-
-sudo a2ensite 002-default-build-pre.conf | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-sudo a2dissite 000-default.conf | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+sudo cp /usr/src/opensiteenergy/apache/001-opensiteenergy-live.conf /etc/nginx/sites-available/.
+sudo cp /usr/src/opensiteenergy/apache/002-opensiteenergy-install.conf /etc/nginx/sites-available/.
 
 while is_in_activation frontail ; do true; done
 
@@ -208,9 +191,11 @@ while ! port_listening 9001 ; do true; done
 
 echo '********* frontail service listening on port 9001 **********' >> /usr/src/opensiteenergy/opensiteenergy.log                                            
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2; url=/admin" /></head><body><p>Redirecting to admin system...</p></body></html>' | sudo tee /var/www/html/index.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2; url=/admin" /></head><body><p>Redirecting to admin system...</p></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 
-sudo apache2ctl restart
+sudo ln -s /etc/nginx/sites-available/002-opensiteenergy-install.conf /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo /usr/sbin/nginx -s reload
 
 echo '********* STAGE 5: Finished installing nodejs, npm and frontail **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
@@ -230,7 +215,7 @@ sudo NEEDRESTART_MODE=a apt install libcurl4-openssl-dev libpixman-1-dev libpixm
 sudo NEEDRESTART_MODE=a apt install libc++-dev libc++abi-dev libpng-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo NEEDRESTART_MODE=a apt install libgl1-mesa-dev libgl1-mesa-dri libjpeg-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo NEEDRESTART_MODE=a apt install qgis qgis-plugin-grass -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-sudo NEEDRESTART_MODE=a apt install default-jdk screen -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+sudo NEEDRESTART_MODE=a apt install screen -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
 sudo apt update -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
@@ -350,15 +335,15 @@ sudo -u postgres psql -d opensite -c 'GRANT ALL PRIVILEGES ON DATABASE opensite 
 
 echo "[Unit]
 Description=opensiteenergy.service
-After=network.target
+After=network.target postgresql.service
 
 [Service]
 CPUWeight=1000
 Type=simple
 User=www-data
 WorkingDirectory=/usr/src/opensiteenergy
-ExecStart=/usr/src/opensiteenergy/build-server.sh
-Restart=on-failure
+ExecStart=/usr/src/opensiteenergy/venv/bin/uvicorn opensiteenergy:app --host 0.0.0.0 --port 8000 --log-level info
+Restart=always
 
 [Install]
 WantedBy=multi-user.target

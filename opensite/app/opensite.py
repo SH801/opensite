@@ -42,14 +42,15 @@ class ForceDownloadMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- Startup ---
-    # (The app is starting up here)
     yield
-    # --- Shutdown ---
-    # This is where Uvicorn calls your stop logic!
-    orchestrator = app.state.orchestrator
-    orchestrator.log.info("Uvicorn signaling shutdown...")
-    orchestrator.stop()
+    try:
+        orchestrator = app.state.orchestrator
+        orchestrator.log.info("Uvicorn signaling shutdown...")
+        orchestrator.stop()
+    except Exception as e:
+        # We use print or a basic logger here because the orchestrator's 
+        # logger might already be shutting down.
+        print(f"Error during lifespan shutdown: {e}")
 
 class OpenSiteApplication:
     def __init__(self, log_level=OpenSiteConstants.LOGGING_LEVEL):
@@ -76,6 +77,7 @@ class OpenSiteApplication:
 
         self.init_environment()
 
+        self._cleanup_signals()
         self.app.mount("/static", StaticFiles(directory=folder_static), name="static")
         self.app.mount("/outputfiles", StaticFiles(directory=folder_layers), name="outputfiles")
         self.app.add_middleware(ForceDownloadMiddleware)
@@ -88,6 +90,16 @@ class OpenSiteApplication:
         self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
         self.log.info(f"{Fore.GREEN}{'*'*17} APPLICATION INITIALIZED {'*'*18}{Style.RESET_ALL}")
         self.log.info(f"{Fore.GREEN}{'='*60}{Style.RESET_ALL}")
+
+    def _cleanup_signals(self):
+        """Removes any stale signal files from previous runs."""
+        signal_file = Path("stop.signal")
+        if signal_file.exists():
+            try:
+                signal_file.unlink()
+                self.log.info("Cleared stale stop.signal file.")
+            except Exception as e:
+                self.log.error(f"Failed to clear stop.signal: {e}")
 
     def build_start(self, build_config=None):
         """Triggers the long-running process in its own thread."""
@@ -178,8 +190,7 @@ class OpenSiteApplication:
         self.log.info("[OpenSiteApplication] Stop signal received. Signalling worker...")
         self.stop_event.set()
 
-        with open("stop.signal", "w") as f:
-            f.write("STOP")
+        Path("stop.signal").write_text("STOP")
 
         postgis = OpenSitePostGIS(log_level=self.log_level)
         postgis.cancel_own_queries()
@@ -279,7 +290,6 @@ class OpenSiteApplication:
         if self.stop_event.is_set() or not self.build_running:
             return
 
-        self.stop_event.set()
         self.build_stop()
 
     def show_elapsed_time(self):
