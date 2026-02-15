@@ -239,6 +239,7 @@ echo '********* STAGE 6: Finished installing general tools and required librarie
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 7: Installing tileserver-gl as system daemon **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
+# Install icu4-70
 wget https://github.com/unicode-org/icu/releases/download/release-70-rc/icu4c-70rc-src.tgz | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 tar -xvf icu4c-70rc-src.tgz
 sudo rm icu4c-70rc-src.tgz
@@ -247,6 +248,7 @@ cd icu/source
 make -j | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo make install | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
+# Install libpng-1.6.37
 wget http://prdownloads.sourceforge.net/libpng/libpng-1.6.37.tar.gz | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 tar -xvf libpng-1.6.37.tar.gz
 sudo rm libpng-1.6.37.tar.gz
@@ -255,12 +257,9 @@ cd libpng-1.6.37
 make -j | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo make install | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
-sudo ldconfig
-export LD_LIBRARY_PATH=/opt/lib:$LD_LIBRARY_PATH
-export PKG_CONFIG_PATH=/opt/lib/pkgconfig:$PKG_CONFIG_PATH
-sudo chmod -R 777 /usr/local
-npm install -g tileserver-gl 2>&1 | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-chmod +x /usr/local/bin/tileserver-gl
+# Install tileserver-gl@5.4.0
+# NOTE: 5.5.0 doesn't work
+sudo env "PATH=$PATH" "LD_LIBRARY_PATH=/opt/lib" "PKG_CONFIG_PATH=/opt/lib/pkgconfig" npm install -g tileserver-gl@5.4.0 --unsafe-perm 2>&1 | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 
 echo "
 [Unit]
