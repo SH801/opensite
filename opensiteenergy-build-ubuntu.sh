@@ -362,7 +362,13 @@ if [ -f "/tmp/.env" ]; then
     rm /tmp/.env
 fi
 
+while is_in_activation opensiteenergy ; do true; done
+
+echo '********* opensiteenergy service running **********' >> /usr/src/opensiteenergy/opensiteenergy.log
+
 while ! port_listening 8000 ; do true; done
+
+echo '********* opensiteenergy service listening on port 8000 **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 sudo systemctl stop frontail.service
 sudo systemctl disable frontail.service
