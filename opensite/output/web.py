@@ -213,8 +213,9 @@ class OpenSiteOutputWeb(OutputBase):
 
             self.log.info("Outputting main web page")
 
-            # Copy main web index page to output folder
+            # Copy main web index page to output folder and FastAPI templates folder
             shutil.copy('tileserver/index.html', str(Path(OpenSiteConstants.OUTPUT_FOLDER) / self.node.output))
+            shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
 
             self.log.info("Outputting tileserver mbtiles stylesheets")
 
