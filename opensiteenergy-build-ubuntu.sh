@@ -116,7 +116,9 @@ virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/op
 source /usr/src/opensiteenergy/venv/bin/activate
 python3 -m pip install -U pip | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 python3 -m pip install -U setuptools wheel twine check-wheel-contents | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install opensiteenergy/requirements.txt | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+cd opensiteenergy
+pip install requirements.txt | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+cd ..
 cp /usr/src/opensiteenergy/.env-template /usr/src/opensiteenergy/.env
 sudo chown -R www-data:www-data /usr/src/opensiteenergy
 sudo sed -i "s/.*TILESERVER_URL.*/    TILESERVER_URL\=\/tiles/" /usr/src/opensiteenergy/.env
