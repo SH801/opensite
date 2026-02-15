@@ -107,7 +107,7 @@ echo '********* STAGE 3: Finished installing git **********' >> /usr/src/opensit
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 4: Installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo and setting up admin site...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Cloning Open Site Energy GitHub repo...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
 git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
@@ -145,7 +145,7 @@ echo '********* STAGE 4: Finished installing Open Site Energy source code ******
 
 echo '********* STAGE 5: Installing nodejs and frontail **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing nodejs, npm and frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
+echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing frontail to show install logs dynamically...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
 
 sudo apt update -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo apt install curl -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
@@ -370,10 +370,10 @@ if [ -f "/tmp/.env" ]; then
 fi
 
 sudo ln -s /etc/nginx/sites-available/001-opensiteenergy-live.conf /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/002-opensiteenergy-install.conf
+# sudo rm -f /etc/nginx/sites-enabled/002-opensiteenergy-install.conf
 sudo /usr/sbin/nginx -s reload
 
-echo 'FINISHED' >> /usr/src/openwindenergy/INSTALLCOMPLETE
+echo 'FINISHED' >> /usr/src/opensiteenergy/INSTALLCOMPLETE
 
 echo '********* STAGE 12: Finished installing Open Site Energy **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
