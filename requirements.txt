@@ -12,7 +12,7 @@ landez
 geopandas
 numpy
 rasterio
-setuptools
+setuptools==70.0.0
 gdal
 python-dotenv
 uvicorn
