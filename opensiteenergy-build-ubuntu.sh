@@ -111,7 +111,7 @@ echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><
 sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
 git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
-sudo apt install virtualenv pip -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+sudo apt install virtualenv pip libgdal-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 source /usr/src/opensiteenergy/venv/bin/activate
 python3 -m pip install -U pip | tee -a /usr/src/opensiteenergy/opensiteenergy.log
