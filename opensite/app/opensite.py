@@ -124,8 +124,8 @@ class OpenSiteApplication:
             self.processing_stop = None
 
             # Only use logging file for each individual build
-            if Path(OpenSiteConstants.LOGGING_FILE).exists():
-                os.remove(OpenSiteConstants.LOGGING_FILE)
+            # if Path(OpenSiteConstants.LOGGING_FILE).exists():
+            #     os.remove(OpenSiteConstants.LOGGING_FILE)
 
             if config_json['purgeall']:
                 self.log.info("Build config triggering purgeall and reinitialisation of environment")
@@ -135,6 +135,8 @@ class OpenSiteApplication:
             with open(self.default_config, 'r') as f:
                 default_config_values = yaml.safe_load(f) or {}
 
+            tileserver_used = ('web' in default_config_values['outputformats'])
+            
             ckan = OpenSiteCKAN(default_config_values['ckan'])
             ckan.load()
             self.graph = OpenSiteGraph( None, \
@@ -149,7 +151,12 @@ class OpenSiteApplication:
             # Run processing queue
             self.queue = OpenSiteQueue(self.graph, log_level=self.log_level, overwrite=False, stop_event=self.stop_event)
             self.processing_start = time.time()
-            self.queue.run()
+            success = self.queue.run()
+
+            # If processing completed successfully, restart tileserver
+            if success: 
+                if tileserver_used: self.restart_tileserver()
+
             self.log.info("Processing queue has completed")
             self.build_running = False
             self.processing_stop = time.time()
@@ -479,6 +486,8 @@ class OpenSiteApplication:
         ckan = OpenSiteCKAN(cli.get_current_value('ckan'))
         site_ymls = ckan.download_sites(cli.get_sites())
 
+        tileserver_used = ('web' in cli.get_outputformats())
+        
         # Initialize data model for session
         graph = OpenSiteGraph(  cli.get_overrides(), \
                                 cli.get_outputformats(), \
@@ -509,7 +518,19 @@ class OpenSiteApplication:
             self.show_elapsed_time()
 
             if success:
+
+                # Wait till very end before copying main web index page to FastAPI templates folder
+                if tileserver_used: self.restart_tileserver()
+
                 self.show_success_message(cli.get_outputformats())
+
+    def restart_tileserver(self):
+        """Copies main tileserver page and triggers restart of tileserver"""
+
+        shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
+
+        self.log.info("Triggering tileserver-gl to restart so it loads new config and mbtiles")
+        Path("RESTARTSERVICES").write_text("RESTART")
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

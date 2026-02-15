@@ -1,6 +1,7 @@
 import logging
 import sys
 import multiprocessing
+from pathlib import Path
 from opensite.constants import OpenSiteConstants
 from colorama import Fore, Style, init
 
@@ -26,28 +27,49 @@ class ColorFormatter(logging.Formatter):
         return formatter.format(record)
 
 class LoggingBase:
+    # Class-level variables to ensure we only ever create ONE of each handler
+    _console_handler = None
+    _file_handler = None
+
     def __init__(self, name: str, level=logging.DEBUG, lock: multiprocessing.Lock = None):
         self.mark_counter = 1
-        self.logger = logging.getLogger(name.ljust(21))
-        self.logger.setLevel(level)
         self.lock = lock
+        
+        # Use a clean name. Padding is now handled by the Formatter below.
+        self.logger = logging.getLogger(name.strip())
+        self.logger.setLevel(level)
         self.logger.propagate = False
         
+        # Only attach handlers if the logger doesn't have them yet
         if not self.logger.handlers:
-            # Terminal handler - with colors
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(ColorFormatter())
-            self.logger.addHandler(console_handler)
+            self._setup_shared_handlers()
+
+    def _setup_shared_handlers(self):
+        """Initializes and attaches global handlers if they don't exist."""
+        
+        # --- SHARED CONSOLE HANDLER ---
+        if LoggingBase._console_handler is None:
+            LoggingBase._console_handler = logging.StreamHandler(sys.stdout)
+            LoggingBase._console_handler.setFormatter(ColorFormatter())
+        
+        # --- SHARED FILE HANDLER ---
+        if LoggingBase._file_handler is None:
+            # Ensure path is absolute to avoid Uvicorn/Systemd relative path confusion
+            log_path = Path(OpenSiteConstants.LOGGING_FILE).resolve()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # File handler - clean text, no colors
-            # This ensures opensite.log remains human-readable
-            file_handler = logging.FileHandler(OpenSiteConstants.LOGGING_FILE)
+            LoggingBase._file_handler = logging.FileHandler(str(log_path))
+            
+            # Use -21s in the format string to handle the padding automatically
             clean_formatter = logging.Formatter(
-                '%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
+                '%(asctime)s [%(levelname)-8s] %(name)-21s: %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
-            file_handler.setFormatter(clean_formatter)
-            self.logger.addHandler(file_handler)
+            LoggingBase._file_handler.setFormatter(clean_formatter)
+
+        # Attach the global handlers to this specific logger instance
+        self.logger.addHandler(LoggingBase._console_handler)
+        self.logger.addHandler(LoggingBase._file_handler)
 
     def mark(self):
         """General mark function to indicate place in code reached"""

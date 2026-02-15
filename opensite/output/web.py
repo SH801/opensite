@@ -184,12 +184,6 @@ class OpenSiteOutputWeb(OutputBase):
 
             json.dump(config_json, open(str(OpenSiteConstants.TILESERVER_CONFIG_FILE), 'w', encoding='utf-8'), indent=4)
 
-            # Wait till very end before copying main web index page to FastAPI templates folder
-            shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
-
-            self.log.info("Triggering tileserver-gl to restart so it loads new config and mbtiles")
-            Path("RESTARTSERVICES").write_text("RESTART")
-
             return True
 
         except (Exception) as e:
@@ -228,9 +222,10 @@ class OpenSiteOutputWeb(OutputBase):
             # All branches share same 'osm-default' path used to 
             # generate basemap so okay to use first branch to get path
             osm_basemap_mbtiles_file = os.path.basename(self.node.custom_properties['structure'][0]['osm-default']).replace('.osm.pbf', '.mbtiles')
-
+            osm_basemap_tmp_mbtiles_file = 'tmp-' + osm_basemap_mbtiles_file
+            
             self.log.info("Deleting non-basemap mbtiles from tileserver data folder")
-            self.clear_folder(str(OpenSiteConstants.TILESERVER_DATA_FOLDER), exceptions=[osm_basemap_mbtiles_file])
+            self.clear_folder(str(OpenSiteConstants.TILESERVER_DATA_FOLDER), exceptions=[osm_basemap_mbtiles_file, osm_basemap_tmp_mbtiles_file])
 
             self.log.info("Deleting style files from tileserver styles folder")
             self.clear_folder(str(OpenSiteConstants.TILESERVER_STYLES_FOLDER))

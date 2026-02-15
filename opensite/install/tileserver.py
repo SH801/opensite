@@ -81,6 +81,10 @@ class OpenSiteTileserver(InstallBase):
         basemap_tmp_mbtiles     = OpenSiteConstants.TILESERVER_DATA_FOLDER / f"tmp-{basename_mbtiles}"
         fonts_tmp_folder        = OpenSiteConstants.TILESERVER_OUTPUT_FOLDER / 'tmp-fonts'
         fonts_tmp_fonts_folder  = fonts_tmp_folder / 'fonts'
+        
+        if not OpenSiteConstants.TILESERVER_DATA_FOLDER.exists():
+            self.log.info("Creating tileserver data folder")
+            OpenSiteConstants.TILESERVER_DATA_FOLDER.mkdir(parents=True, exist_ok=True)
 
         if basemap_tmp_mbtiles.exists(): basemap_tmp_mbtiles.unlink()
         if fonts_tmp_folder.exists(): shutil.rmtree(fonts_tmp_folder)

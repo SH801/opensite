@@ -9,7 +9,7 @@ class OpenSiteInstaller(InstallBase):
 
     def __init__(self, node, log_level=logging.INFO, shared_lock=None, shared_metadata=None):
         super().__init__(node, log_level=log_level, shared_lock=shared_lock, shared_metadata=shared_metadata)
-        self.log = OpenSiteLogger("OpenSiteDownloader", log_level, shared_lock)
+        self.log = OpenSiteLogger("OpenSiteInstaller", log_level, shared_lock)
         self.base_path = OpenSiteConstants.DOWNLOAD_FOLDER
         self.output_path = OpenSiteConstants.OUTPUT_FOLDER
 
