@@ -569,10 +569,9 @@ class OpenSiteApplication:
         self.log.info("Triggering tileserver-gl to restart so it loads new config and mbtiles")
         # If running as server, create 'RESTARTSERVICES' file to trigger systemd restart of tileserver-gl
         Path("RESTARTSERVICES").write_text("RESTART")
-
-        # If running in Docker, run Docker command to restart tileserver-gl
         is_docker = os.path.exists('/var/run/docker.sock') or os.path.exists('/.dockerenv')
         if is_docker:
+            # If running in Docker, run Docker command to restart tileserver-gl
             try:
                 self.log.info("Running within Docker, attempting to restart tileserver-gl")
                 subprocess.run(["docker", "restart", OpenSiteConstants.DOCKER_TILESERVER_NAME], check=True, capture_output=True)
@@ -580,26 +579,11 @@ class OpenSiteApplication:
             except subprocess.CalledProcessError as e:
                 self.log.error(f"Problem restarting Docker tileserver-gl {e}")
         else:
-            # We assume Docker is installed
+            # Restart tileserver-gl via bash for flexibility on how tileserver-gl is installed
+            # Could be Docker or could be os-specific install
             try:
-                self.log.info("Killing tileserver-gl if already running")
-                subprocess.run(["docker", "kill", OpenSiteConstants.DOCKER_TILESERVER_NAME], check=True, capture_output=True)
-                self.log.info(f"Container {OpenSiteConstants.DOCKER_TILESERVER_NAME} killed")
-
-                self.log.info("Restarting tileserver-gl")
-                tileserver_path = str(OpenSiteConstants.BUILD_ROOT / "tileserver")
-                subprocess.run(\
-                    [   "docker", 
-                        "run", 
-                        "--name", OpenSiteConstants.DOCKER_TILESERVER_NAME, 
-                        "-d", 
-                        "--rm", 
-                        "-v", f"{tileserver_path}:/data", 
-                        "-p", "8080:8080", 
-                        "maptiler/tileserver-gl", 
-                        "--config", "config.json"
-                    ], check=True, capture_output=True)
-
+                self.log.info("Restarting tileserver-gl via bash script")
+                subprocess.run(["local-tileserver.sh"], check=True, capture_output=True)
             except subprocess.CalledProcessError as e:
                 self.log.error(f"Problem restarting Docker tileserver-gl {e}")
 

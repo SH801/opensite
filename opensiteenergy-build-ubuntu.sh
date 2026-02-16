@@ -282,7 +282,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/usr/src/opensiteenergy
-ExecStart=/usr/src/opensiteenergy/run-tileserver-gl.sh
+ExecStart=/usr/src/opensiteenergy/server-tileserver.sh
 Restart=on-failure
 Environment=PORT=8080
 Environment=NODE_ENV=production
