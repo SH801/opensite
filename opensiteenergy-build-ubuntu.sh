@@ -135,40 +135,6 @@ sudo rm -R /usr/src/opensiteenergy
 cd /usr/src
 git clone https://github.com/SH801/opensiteenergy.git opensiteenergy
 
-echo '<!doctype html><html><head><meta http-equiv="refresh" content="2"></head><body><pre>Installing Python-related software and libraries...</pre></body></html>' | sudo tee /var/www/html/index.nginx-debian.html
-
-sudo apt install virtualenv pip libgdal-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-source /usr/src/opensiteenergy/venv/bin/activate
-python3 -m pip install -U pip | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-python3 -m pip install -U setuptools wheel twine check-wheel-contents | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-cd opensiteenergy
-pip install gdal==`gdal-config --version` | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-pip install -r requirements.txt | tee -a /usr/src/opensiteenergy/opensiteenergy.log
-cd ..
-cp /usr/src/opensiteenergy/.env-template /usr/src/opensiteenergy/.env
-sudo chown -R www-data:www-data /usr/src/opensiteenergy
-sudo sed -i "s/.*TILESERVER_URL.*/TILESERVER_URL\=\/tiles/" /usr/src/opensiteenergy/.env
-
-echo "[Unit]
-Description=opensiteenergy-servicesmanager.service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/usr/src/opensiteenergy
-ExecStart=/usr/src/opensiteenergy/opensiteenergy-servicesmanager.sh
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-
-" | sudo tee /etc/systemd/system/opensiteenergy-servicesmanager.service >/dev/null
-
-sudo systemctl enable opensiteenergy-servicesmanager.service
-sudo systemctl start opensiteenergy-servicesmanager.service
-
 echo '********* STAGE 4: Finished installing Open Site Energy source code **********' >> /usr/src/opensiteenergy/opensiteenergy.log
 
 
@@ -197,7 +163,6 @@ Restart=on-failure
 WantedBy=multi-user.target
 
 " | sudo tee /etc/systemd/system/frontail.service >/dev/null
-
 
 sudo systemctl enable frontail.service
 sudo systemctl restart frontail.service
@@ -241,6 +206,38 @@ echo '********* STAGE 5: Finished installing nodejs, npm and frontail **********
 
 echo '' >> /usr/src/opensiteenergy/opensiteenergy.log
 echo '********* STAGE 6: Installing general tools and required libraries **********' >> /usr/src/opensiteenergy/opensiteenergy.log
+
+sudo apt install virtualenv pip libgdal-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+virtualenv -p /usr/bin/python3 /usr/src/opensiteenergy/venv | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+source /usr/src/opensiteenergy/venv/bin/activate
+python3 -m pip install -U pip | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+python3 -m pip install -U setuptools wheel twine check-wheel-contents | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+cd opensiteenergy
+pip install gdal==`gdal-config --version` | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+pip install -r requirements.txt | tee -a /usr/src/opensiteenergy/opensiteenergy.log
+cd ..
+cp /usr/src/opensiteenergy/.env-template /usr/src/opensiteenergy/.env
+sudo chown -R www-data:www-data /usr/src/opensiteenergy
+sudo sed -i "s/.*TILESERVER_URL.*/TILESERVER_URL\=\/tiles/" /usr/src/opensiteenergy/.env
+
+echo "[Unit]
+Description=opensiteenergy-servicesmanager.service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/src/opensiteenergy
+ExecStart=/usr/src/opensiteenergy/opensiteenergy-servicesmanager.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+" | sudo tee /etc/systemd/system/opensiteenergy-servicesmanager.service >/dev/null
+
+sudo systemctl enable opensiteenergy-servicesmanager.service
+sudo systemctl start opensiteenergy-servicesmanager.service
 
 sudo NEEDRESTART_MODE=a apt install gnupg software-properties-common cmake make g++ dpkg build-essential autoconf pkg-config -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
 sudo NEEDRESTART_MODE=a apt install libbz2-dev libpq-dev libboost-all-dev libgeos-dev libtiff-dev libspatialite-dev -y | tee -a /usr/src/opensiteenergy/opensiteenergy.log
