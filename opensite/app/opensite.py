@@ -579,7 +579,29 @@ class OpenSiteApplication:
                 self.log.info(f"Container {OpenSiteConstants.DOCKER_TILESERVER_NAME} rebooted via Docker socket")
             except subprocess.CalledProcessError as e:
                 self.log.error(f"Problem restarting Docker tileserver-gl {e}")
+        else:
+            # We assume Docker is installed
+            try:
+                self.log.info("Killing tileserver-gl if already running")
+                subprocess.run(["docker", "kill", OpenSiteConstants.DOCKER_TILESERVER_NAME], check=True, capture_output=True)
+                self.log.info(f"Container {OpenSiteConstants.DOCKER_TILESERVER_NAME} killed")
 
+                self.log.info("Restarting tileserver-gl")
+                tileserver_path = str(OpenSiteConstants.BUILD_ROOT / "tileserver")
+                subprocess.run(\
+                    [   "docker", 
+                        "run", 
+                        "--name", OpenSiteConstants.DOCKER_TILESERVER_NAME, 
+                        "-d", 
+                        "--rm", 
+                        "-v", f"{tileserver_path}:/data", 
+                        "-p", "8080:8080", 
+                        "maptiler/tileserver-gl", 
+                        "--config", "config.json"
+                    ], check=True, capture_output=True)
+
+            except subprocess.CalledProcessError as e:
+                self.log.error(f"Problem restarting Docker tileserver-gl {e}")
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

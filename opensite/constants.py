@@ -14,9 +14,6 @@ class OpenSiteConstants:
     # Text used when creating tables and files
     OPENSITEENERGY_SHORTNAME    = 'opensiteenergy'
     
-    # Whether we're running a server build
-    SERVER_BUILD                = os.getenv("SERVER_BUILD", False)
-
     # Directory script is run from
     WORKING_FOLDER              = str(Path(__file__).absolute().parent) + '/'
 
