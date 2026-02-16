@@ -8,11 +8,12 @@ import os
 import time
 import uvicorn
 import signal
+import subprocess
 import sys
 import time
 import threading
 import yaml
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -33,6 +34,40 @@ from starlette.middleware.sessions import SessionMiddleware
 
 init()
 
+class GlobalNoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        
+        path = request.url.path.lower()
+        no_cache_extensions = (".json", ".mbtiles")
+        is_index = path in ["/", "/index.html"]
+        
+        if path.endswith(no_cache_extensions) or is_index:
+            # no-store: Do not save to disk
+            # no-cache: Revalidate with server every time
+            # max-age=0: Expire immediately
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            
+        return response
+        
+class IgnoreDevToolsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # List of annoying dev-only paths to silence
+        noise_paths = [
+            ".well-known/appspecific/com.chrome.devtools.json",
+            ".css.map",
+            ".js.map"
+        ]
+        
+        if any(path in request.url.path for path in noise_paths):
+            # Return 204 No Content: tells the browser "I heard you, but there's nothing here"
+            # This prevents the 404 log entry in FastAPI
+            return Response(status_code=204)
+            
+        return await call_next(request)
+    
 class ForceDownloadMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -78,10 +113,12 @@ class OpenSiteApplication:
         folder_layers = str(OpenSiteConstants.OUTPUT_LAYERS_FOLDER)
 
         self.init_environment()
-
         self._cleanup_signals()
+
         self.app.mount("/static", StaticFiles(directory=folder_static), name="static")
         self.app.mount("/outputfiles", StaticFiles(directory=folder_layers), name="outputfiles")
+        self.app.add_middleware(GlobalNoCacheMiddleware)
+        self.app.add_middleware(IgnoreDevToolsMiddleware)
         self.app.add_middleware(ForceDownloadMiddleware)
         self.app.state.templates = Jinja2Templates(directory=folder_templates)
         self.app.state.log = self.log
@@ -530,7 +567,19 @@ class OpenSiteApplication:
         shutil.copy('tileserver/index.html', str(Path('opensite') / "app" / "templates" / "index.html"))
 
         self.log.info("Triggering tileserver-gl to restart so it loads new config and mbtiles")
+        # If running as server, create 'RESTARTSERVICES' file to trigger systemd restart of tileserver-gl
         Path("RESTARTSERVICES").write_text("RESTART")
+
+        # If running in Docker, run Docker command to restart tileserver-gl
+        is_docker = os.path.exists('/var/run/docker.sock') or os.path.exists('/.dockerenv')
+        if is_docker:
+            try:
+                self.log.info("Running within Docker, attempting to restart tileserver-gl")
+                subprocess.run(["docker", "restart", OpenSiteConstants.DOCKER_TILESERVER_NAME], check=True, capture_output=True)
+                self.log.info(f"Container {OpenSiteConstants.DOCKER_TILESERVER_NAME} rebooted via Docker socket")
+            except subprocess.CalledProcessError as e:
+                self.log.error(f"Problem restarting Docker tileserver-gl {e}")
+
 
     def shutdown(self, message="Process Complete"):
         """Clean exit point for the application."""

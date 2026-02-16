@@ -10,8 +10,9 @@ from opensite.logging.base import LoggingBase
 from dotenv import load_dotenv
 
 if not Path('.env').exists(): 
-    print("Default .env file not found, creating it from template")
-    shutil.copy('.env-template', '.env')
+    if Path('.env-template').exists():
+        print("Default .env file not found, creating it from template")
+        shutil.copy('.env-template', '.env')
 
 load_dotenv()
 

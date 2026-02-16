@@ -11,12 +11,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install general tools and required libraries
 
-RUN apt update
-RUN apt install gnupg software-properties-common cmake make g++ dpkg python3.12-venv \
-                libbz2-dev libpq-dev libboost-all-dev libgeos-dev libtiff-dev libspatialite-dev \
-                libsqlite3-dev libcurl4-gnutls-dev liblua5.4-dev rapidjson-dev libshp-dev libgdal-dev gdal-bin \
-                zip unzip lua5.4 shapelib ca-certificates curl nano wget pip git proj-bin spatialite-bin sqlite3 \
-                qgis qgis-plugin-grass -y
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg software-properties-common cmake make g++ dpkg python3.12-venv \
+    libbz2-dev libpq-dev libboost-all-dev libgeos-dev libtiff-dev libspatialite-dev \
+    libsqlite3-dev libcurl4-gnutls-dev liblua5.4-dev rapidjson-dev libshp-dev libgdal-dev gdal-bin \
+    zip unzip lua5.4 shapelib ca-certificates curl nano wget pip git proj-bin spatialite-bin sqlite3 \
+    qgis qgis-plugin-grass docker.io \
+    && rm -rf /var/lib/apt/lists/*
 RUN apt update; exit 0
 
 
@@ -56,12 +57,13 @@ COPY opensite opensite
 COPY tileserver tileserver
 COPY web web
 COPY build-cli.sh .
+COPY build-server.sh .
 RUN chmod +x build-cli.sh
+RUN chmod +x build-server.sh
 COPY opensiteenergy.py .
 COPY build-qgis.py .
 COPY clipping-master-EPSG-25830.gpkg .
 COPY osm-boundaries.yml .
 COPY defaults.yml .
-COPY .env-template .
 
 CMD ["/bin/bash"]

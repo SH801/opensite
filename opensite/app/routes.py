@@ -24,7 +24,6 @@ from opensite.postgis.opensite import OpenSitePostGIS
 # Create the router instance
 OpenSiteRouter = APIRouter()
 
-
 # **********************************************************
 # **************** Core website functions ******************
 # **********************************************************
@@ -103,12 +102,8 @@ async def process_login(
     Process login credentials
     """
     request.session['logged_in'] = False
-    server_envvars = Path(".env")
 
-    if not server_envvars.is_file():
-        return HTMLResponse(content="Server login credentials file missing", status_code=500)
-
-    load_dotenv(str(server_envvars))
+    load_dotenv()
 
     admin_user = os.getenv('ADMIN_USERNAME')
     admin_pass = os.getenv('ADMIN_PASSWORD')

@@ -12,9 +12,6 @@
 
     <title>Open Site Energy Server - Home</title>
 
-    <script src="{{ url_for('static', path='js/slimselect.min.js') }}"></script>
-    <link href="{{ url_for('static', path='css/slimselect.css') }}" rel="stylesheet"></link>
-
     <!-- Custom fonts for this template-->
     <link href="{{ url_for('static', path='vendor/fontawesome-free/css/all.min.css') }}" rel="stylesheet" type="text/css">
     <link
@@ -60,15 +57,18 @@
 
     </div>
 
-    <!-- Bootstrap core JavaScript-->
-    <script src="vendor/jquery/jquery.min.js"></script>
-    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', path='vendor/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
     <!-- Core plugin JavaScript-->
-    <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+    <script src="{{ url_for('static', path='vendor/jquery-easing/jquery.easing.min.js') }}"></script>
 
     <!-- Custom scripts for all pages-->
-    <script src="js/sb-admin-2.min.js"></script>
+    <script src="{{ url_for('static', path='js/sb-admin-2.min.js') }}"></script>
+
+        <!-- Page level plugins -->
+    <script src="{{ url_for('static', path='vendor/datatables/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
 
 </body>
 

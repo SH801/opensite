@@ -24,10 +24,24 @@ services:
       timeout: 5s
       retries: 20
 
+  opensiteenergy-tileserver:
+    container_name: opensiteenergy-tileserver
+    image: maptiler/tileserver-gl:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./build/tileserver:/data
+    command: ["--config", "/data/config.json"]
+
   opensiteenergy-build:
     container_name: opensiteenergy-build
+    ports:
+      - "8000:8000"
     volumes:
+      # To use different local folder for Docker, change './build' before ':'
       - ./build:/usr/src/opensiteenergy/build
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       TZ: "Europe/London"
       POSTGRES_HOST: opensiteenergy-postgis
@@ -35,6 +49,13 @@ services:
       POSTGRES_USER: $POSTGRES_USER
       POSTGRES_PASSWORD: $POSTGRES_PASSWORD 
       BUILD_FOLDER: "build/"
+      TILESERVER_URL: "http://localhost:8080"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
+      QGIS_PREFIX_PATH: "/usr/"
+      QGIS_PYTHON_PATH: "/usr/bin/python3"
+      QGIS_PROJ_DATA: "/usr/share/proj/"
+      QGIS_PROJ_LIB: $QGIS_PROJ_DATA
     build:
       context: .
       dockerfile: opensiteenergy-build.dockerfile

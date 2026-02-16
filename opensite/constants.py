@@ -29,6 +29,9 @@ class OpenSiteConstants:
     # Logging file
     LOGGING_FILE                = f"{OPENSITEENERGY_SHORTNAME}.log"
     
+    # Docker tileserver name
+    DOCKER_TILESERVER_NAME      = f"{OPENSITEENERGY_SHORTNAME}-tileserver"
+
     # How many seconds to update console
     DOWNLOAD_INTERVAL_TIME      = 10
 
