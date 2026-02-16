@@ -74,7 +74,7 @@ class OutputBase:
             return True
         
         except subprocess.CalledProcessError as e:
-            self.log.error(f"ogr2ogr Conversion Error: {e.stderr}")
+            self.log.error(f"ogr2ogr Conversion Error: {e} Subprocess cmd: {cmd}")
             return False
 
     def convert_node_input_to_output_files(self, node):

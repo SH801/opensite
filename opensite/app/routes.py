@@ -44,12 +44,22 @@ async def home(request: Request):
     """
     Website home page
     Return app index page which may redirect to login page if not logged in 
+    If build is running, return staging page
     """
+
+    orchestrator = request.app.state.orchestrator
     templates = request.app.state.templates
-    return templates.TemplateResponse(
-        "index.html", 
-        {"request": request}
-    )
+
+    if orchestrator.build_running:
+        return templates.TemplateResponse(
+            "index_staging.html", 
+            {"request": request}
+        )
+    else:
+        return templates.TemplateResponse(
+            "index.html", 
+            {"request": request}
+        )
 
 @OpenSiteRouter.get(f"/{OpenSiteConstants.OPENSITEENERGY_SHORTNAME}-data.json")              
 async def get_site_data():
