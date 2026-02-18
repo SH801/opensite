@@ -4,19 +4,30 @@ if [ -f ".env" ]; then
     . ./.env
 fi
 
-echo "Running tileserver-gl..."
-
-docker kill opensiteenergy-tileserver
-
-if [ -n "${BUILD_FOLDER+1}" ]; then
-    docker run --name opensiteenergy-tileserver -d --rm -v "$BUILD_FOLDER"tileserver/:/data -p 8080:8080 maptiler/tileserver-gl --config config.json
-else
-    docker run --name opensiteenergy-tileserver -d --rm -v $(pwd)/build/tileserver/:/data -p 8080:8080 maptiler/tileserver-gl --config config.json
-fi
-
 . venv/bin/activate
+
+./local-tileserver.sh
+
 uvicorn opensiteenergy:app --host 0.0.0.0 --port 8000 --log-level info
 
-echo "Closing tileserver-gl..."
+COMMAND_NAME="tileserver-gl"
 
-docker kill opensiteenergy-tileserver
+if command -v $COMMAND_NAME >/dev/null 2>&1; then
+    echo "Running $COMMAND_NAME locally..."
+    
+    # Kill existing local instance first
+
+    echo "Killing existing tileserver-gl..."
+
+    pkill -f "$COMMAND_NAME"
+    sleep 1
+
+else
+    echo "$COMMAND_NAME not found locally. Falling back to Docker..."
+
+    # Kill existing Docker instance first
+
+    echo "Killing existing tileserver-gl..."
+
+    docker kill openwindenergy-tileserver
+fi

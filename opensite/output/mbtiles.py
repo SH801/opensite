@@ -28,6 +28,7 @@ class OpenSiteOutputMbtiles(OutputBase):
         final_output_path = Path(self.base_path) / self.node.output
         grid_table = OpenSiteConstants.OPENSITE_GRIDOUTPUT
         scratch_table_1 = f"tmp_1_{self.node.input}_{self.node.urn}"
+        refined_grid = f"customgrid_{self.node.input}_{self.node.urn}"
 
         dbparams = {
             "crs": sql.Literal(self.get_crs_default()),
@@ -35,6 +36,7 @@ class OpenSiteOutputMbtiles(OutputBase):
             "input": sql.Identifier(self.node.input),
             "scratch1": sql.Identifier(scratch_table_1),
             "scratch1_index": sql.Identifier(f"{scratch_table_1}_idx"),
+            "refined_grid": sql.Identifier(refined_grid),
         }
 
         # Drop scratch tables
@@ -42,6 +44,37 @@ class OpenSiteOutputMbtiles(OutputBase):
 
         if tmp_output_path.exists(): tmp_output_path.unlink()
 
+        query_refined_grid = sql.SQL("""
+        CREATE TABLE {refined_grid} AS
+        WITH RECURSIVE grid_gen(geom, depth, parent_id) AS (
+            SELECT geom, 0, id FROM {grid}
+            
+            UNION ALL
+            
+            SELECT 
+                (ST_Dump(ST_SquareGrid((ST_XMax(g.geom) - ST_XMin(g.geom))/2, g.geom))).geom,
+                depth + 1,
+                g.parent_id
+            FROM grid_gen g
+            WHERE depth < 3 
+            AND (
+                SELECT SUM(ST_NPoints(layer.geom)) 
+                FROM {input} layer 
+                WHERE ST_Intersects(layer.geom, g.geom)
+            ) > 150000 
+        )
+        SELECT 
+            row_number() OVER () as id, 
+            parent_id as coarse_id, 
+            geom 
+        FROM grid_gen
+        WHERE depth = 3 OR (
+            SELECT SUM(ST_NPoints(layer.geom)) 
+            FROM {input} layer 
+            WHERE ST_Intersects(layer.geom, geom)
+        ) <= 150000;
+        """).format(**dbparams)
+        
         query_scratch_table_1_gridify = sql.SQL("""
         CREATE TABLE {scratch1} AS 
         SELECT 
@@ -56,6 +89,8 @@ class OpenSiteOutputMbtiles(OutputBase):
             self.log.info(f"[OpenSiteOutputMbtiles] [{self.node.name}] Cutting up output into grid squares")
 
             dataset_name = self.node.output.replace('.mbtiles', '')
+            # Create data-size-dependent grid so Tippecanoe/Maplibre don't 'blotch' up features
+            self.postgis.execute_query(query_refined_grid)
             self.postgis.execute_query(query_scratch_table_1_gridify)
             self.postgis.execute_query(query_scratch_table_1_index)
             self.postgis.export_spatial_data(scratch_table_1, dataset_name, str(tmp_output_path))
@@ -110,7 +145,7 @@ class OpenSiteOutputMbtiles(OutputBase):
             return True
 
         except subprocess.CalledProcessError as e:
-            self.log.error(f"[OpenSiteOutputMbtiles] [{self.node.name}] Tippecanoe error {e.stderr}")
+            self.log.error(f"[OpenSiteOutputMbtiles] [{self.node.name}] Tippecanoe error {cmd} {e.stderr}")
             return False
         except Error as e:
             self.log.error(f"[OpenSiteOutputMbtiles] [{self.node.name}] PostGIS error during gridify: {e}")

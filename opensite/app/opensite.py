@@ -583,7 +583,7 @@ class OpenSiteApplication:
             # Could be Docker or could be os-specific install
             try:
                 self.log.info("Restarting tileserver-gl via bash script")
-                subprocess.run(["local-tileserver.sh"], check=True, capture_output=True)
+                subprocess.run(["./local-tileserver.sh"], check=True, capture_output=True)
             except subprocess.CalledProcessError as e:
                 self.log.error(f"Problem restarting Docker tileserver-gl {e}")
 

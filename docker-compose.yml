@@ -17,7 +17,7 @@ services:
       PGPORT: "5432"
     hostname: opensiteenergy-postgis
     volumes:
-      - ./build/postgres:/var/lib/postgresql
+      - ${BUILD_FOLDER:-./build}/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 15s
@@ -31,7 +31,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./build/tileserver:/data
+      - ${BUILD_FOLDER:-./build}/tileserver:/data
     command: ["--config", "/data/config.json"]
 
   opensiteenergy-build:
@@ -40,7 +40,7 @@ services:
       - "8000:8000"
     volumes:
       # To use different local folder for Docker, change './build' before ':'
-      - ./build:/usr/src/opensiteenergy/build
+      - ${BUILD_FOLDER:-build}:/usr/src/opensiteenergy/build
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       TZ: "Europe/London"
@@ -48,7 +48,7 @@ services:
       POSTGRES_DB: $POSTGRES_DB
       POSTGRES_USER: $POSTGRES_USER
       POSTGRES_PASSWORD: $POSTGRES_PASSWORD 
-      BUILD_FOLDER: "build/"
+      BUILD_FOLDER: build/
       TILESERVER_URL: "http://localhost:8080"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}

@@ -18,7 +18,11 @@ if command -v $COMMAND_NAME >/dev/null 2>&1; then
 
     export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
-    $COMMAND_NAME -p 8080 --public_url ${TILESERVER_URL} --config build/tileserver/config.json > tileserver.log 2>&1 &
+    if [ -n "${BUILD_FOLDER+1}" ]; then
+        $COMMAND_NAME -p 8080 --public_url ${TILESERVER_URL} --config "$BUILD_FOLDER"tileserver/config.json > tileserver.log 2>&1 &
+    else
+        $COMMAND_NAME -p 8080 --public_url ${TILESERVER_URL} --config build/tileserver/config.json > tileserver.log 2>&1 &
+    fi
 
 else
     echo "$COMMAND_NAME not found locally. Falling back to Docker..."

@@ -214,11 +214,12 @@ class OpenSiteConstants:
     # Processing grid is used to cut up core datasets into grid squares
     # to reduce memory load on ST_Union. All final layers will have ST_Union
     # so it's okay to cut up early datasets before this
-    GRID_PROCESSING_SPACING     = 100 * 1000 # Size of grid squares in metres, ie. 500km
+    GRID_PROCESSING_SPACING     = 100 * 1000 # Size of grid squares in metres, ie. 100km
 
     # Output grid is used to cut up final output into grid squares 
     # in order to improve quality and performance of rendering 
-    GRID_OUTPUT_SPACING         = 10 * 1000 # Size of grid squares in metres, ie. 10km
+    GRID_OUTPUT_SPACING_KM      = 100 # Size of grid squares in kilometres
+    GRID_OUTPUT_SPACING         = GRID_OUTPUT_SPACING_KM * 1000 
 
     # Basename of OSM boundaries files
     # If [basename].gpkg file doesn't exist, processing nodes will be added to create it
@@ -237,7 +238,7 @@ class OpenSiteConstants:
     OPENSITE_CLIPPINGTEMP       = DATABASE_BASE + 'clipping_temp'
     OPENSITE_GRIDPROCESSING     = DATABASE_BASE + 'grid_processing'
     OPENSITE_GRIDBUFFEDGES      = OPENSITE_GRIDPROCESSING + '_buffered_edges'
-    OPENSITE_GRIDOUTPUT         = DATABASE_BASE + 'grid_output'
+    OPENSITE_GRIDOUTPUT         = DATABASE_BASE + f"grid_output_{GRID_OUTPUT_SPACING_KM}"
     OPENSITE_OSMBOUNDARIES      = DATABASE_BASE + OSM_BOUNDARIES.replace('-', '_')
 
     # Lookup to convert internal areas to OSM names
